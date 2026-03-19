@@ -1,5 +1,5 @@
 {
-  "name": "Roblox – The Daily Director",
+  "name": "Roblox – The Daily Director (v2 – AI Memory)",
   "nodes": [
     {
       "parameters": {
@@ -22,6 +22,51 @@
 
     {
       "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Analytics",
+          "mode": "list"
+        },
+        "options": {
+          "returnAllMatches": true
+        }
+      },
+      "id": "read-analytics",
+      "name": "📊 Read Analytics History",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [450, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Reads all rows from the Analytics sheet to find top performers.\nIf the Analytics tab doesn't exist yet (first 14 days), this returns empty\nand the Format node gracefully handles it."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => {\n  // Get all analytics items (may be array or single item)\n  const items = $items('📊 Read Analytics History') || [];\n  const rows = items.map(i => i.json).filter(r => r['Total Views']);\n\n  // Sort by Total Views descending, take top 3\n  rows.sort((a, b) => (parseInt(b['Total Views']) || 0) - (parseInt(a['Total Views']) || 0));\n  const top3 = rows.slice(0, 3);\n  const bottom3 = rows.sort((a, b) => (parseInt(a['Total Views']) || 0) - (parseInt(b['Total Views']) || 0)).slice(0, 3);\n\n  let context = '';\n  if (top3.length > 0) {\n    context += 'TOP PERFORMERS (replicate these patterns):\\n';\n    top3.forEach((r, i) => {\n      context += (i+1) + '. ' + r['File Code Name'] + ' — ' + parseInt(r['Total Views']).toLocaleString() + ' views, ' + r['Engagement Rate'] + ' engagement, Top platform: ' + r['Top Platform'] + ', Tier: ' + r['Tier'] + '\\n';\n    });\n  }\n  if (bottom3.length > 0) {\n    context += '\\nWEAK PERFORMERS (avoid these patterns):\\n';\n    bottom3.forEach((r, i) => {\n      context += (i+1) + '. ' + r['File Code Name'] + ' — ' + parseInt(r['Total Views']).toLocaleString() + ' views, Tier: ' + r['Tier'] + '\\n';\n    });\n  }\n  if (!context) context = 'No analytics data yet — this is an early content run.';\n\n  return JSON.stringify({ performance_context: context, total_videos_analyzed: rows.length });\n})() }}",
+        "options": {}
+      },
+      "id": "format-memory",
+      "name": "🧠 Format AI Memory",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [700, 300],
+      "notes": "Formats the top 3 and bottom 3 performing videos into a text context block.\nThis is injected into the OpenAI system prompt so the AI learns from past performance.\nGracefully handles empty Analytics data (first 14 days)."
+    },
+
+    {
+      "parameters": {
         "resource": "chat",
         "operation": "complete",
         "model": {
@@ -33,11 +78,11 @@
           "values": [
             {
               "role": "system",
-              "content": "Act as an elite short-form video strategist for the North American Gen Z/Alpha Roblox market. Your goal is maximum retention, engagement, and virality. Generate a script for a 20-second cinematic, hyper-realistic Roblox video based on current trends (DOORS, Blox Fruits, Dress to Impress, Brookhaven, etc.).\n\nToday's date is: {{ $now.format('yyyy-MM-dd') }}\n\nOutput strictly in this exact JSON format and NOTHING else:\n{\n  \"file_code_name\": \"2-3 words separated by dashes, e.g. doors-figure-chase\",\n  \"title_concept\": \"A short viral title concept\",\n  \"hook_text\": \"Bold on-screen text hook for 0-3s designed to interrupt scrolling\",\n  \"hook_visual_prompt\": \"Detailed Nano Banana 2 image prompt for the hook frame\",\n  \"voiceover_script\": \"Full US-slang voiceover script for the entire 20s video. Last word must flow into the first word of hook_text for seamless looping.\",\n  \"veo_motion_prompts\": [\n    \"Veo 3.1 motion/camera prompt for cut 1 with audio description\",\n    \"Veo 3.1 motion/camera prompt for cut 2 with audio description\",\n    \"Veo 3.1 motion/camera prompt for cut 3 with audio description\"\n  ],\n  \"easter_egg\": \"Description of hidden visual Easter Egg OR controversial debate statement\",\n  \"nano_banana_prompts\": [\n    \"Full Nano Banana 2 prompt for scene/frame 1 (9:16 vertical, UE5 aesthetic, volumetric fog, dramatic rim lighting, 8k textures)\",\n    \"Full Nano Banana 2 prompt for scene/frame 2\",\n    \"Full Nano Banana 2 prompt for scene/frame 3\"\n  ]\n}"
+              "content": "Act as an elite short-form video strategist for the North American Gen Z/Alpha Roblox market. Your goal is maximum retention, engagement, and virality. Generate a script for a 20-second cinematic, hyper-realistic Roblox video based on current trends (DOORS, Blox Fruits, Dress to Impress, Brookhaven, etc.).\n\nToday's date is: {{ $now.format('yyyy-MM-dd') }}\n\n=== PERFORMANCE MEMORY (LEARN FROM THIS) ===\n{{ $json.performance_context }}\nTotal videos analyzed: {{ $json.total_videos_analyzed }}\n\nUse the performance data above to inform your creative decisions:\n- If top performers used a specific game, lean into that game's trends\n- If top performers had a certain hook style, replicate that energy\n- Avoid patterns that led to weak performance\n- If no data exists yet, go with your best instinct\n=== END PERFORMANCE MEMORY ===\n\nOutput strictly in this exact JSON format and NOTHING else:\n{\n  \"file_code_name\": \"2-3 words separated by dashes, e.g. doors-figure-chase\",\n  \"title_concept\": \"A short viral title concept\",\n  \"hook_text\": \"Bold on-screen text hook for 0-3s designed to interrupt scrolling\",\n  \"hook_visual_prompt\": \"Detailed Nano Banana 2 image prompt for the hook frame\",\n  \"voiceover_script\": \"Full US-slang voiceover script for the entire 20s video. Last word must flow into the first word of hook_text for seamless looping.\",\n  \"veo_motion_prompts\": [\n    \"Veo 3.1 motion/camera prompt for cut 1 with audio description\",\n    \"Veo 3.1 motion/camera prompt for cut 2 with audio description\",\n    \"Veo 3.1 motion/camera prompt for cut 3 with audio description\"\n  ],\n  \"easter_egg\": \"Description of hidden visual Easter Egg OR controversial debate statement\",\n  \"nano_banana_prompts\": [\n    \"Full Nano Banana 2 prompt for scene/frame 1 (9:16 vertical, UE5 aesthetic, volumetric fog, dramatic rim lighting, 8k textures)\",\n    \"Full Nano Banana 2 prompt for scene/frame 2\",\n    \"Full Nano Banana 2 prompt for scene/frame 3\"\n  ],\n  \"memory_influence\": \"1-sentence explanation of how you used the performance data to shape this concept\"\n}"
             },
             {
               "role": "user",
-              "content": "Generate today's viral Roblox video concept. Make it completely different from yesterday. Focus on whatever Roblox game or trend is most culturally relevant right now. Push the boundaries of creativity."
+              "content": "Generate today's viral Roblox video concept. Make it completely different from yesterday. Focus on whatever Roblox game or trend is most culturally relevant right now. Push the boundaries of creativity. Learn from past performance data."
             }
           ]
         },
@@ -51,28 +96,28 @@
       "name": "🧠 Generate Daily Concept",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.8,
-      "position": [450, 300],
+      "position": [950, 300],
       "credentials": {
         "openAiApi": {
           "id": "YOUR_OPENAI_CREDENTIAL_ID",
           "name": "OpenAI API"
         }
       },
-      "notes": "Uses GPT-4o with high temperature (0.95) for creative variety.\nResponse format forced to JSON so downstream nodes can parse fields.\nThe system prompt includes today's date for freshness.\nReplace credential ID with your actual OpenAI credential."
+      "notes": "v2 — AI Memory enabled.\nThe system prompt now includes a PERFORMANCE MEMORY section\nwith top 3 and bottom 3 videos from analytics.\nGPT uses this data to replicate winning patterns and avoid losers.\nNew output field: memory_influence explains how data shaped the concept."
     },
 
     {
       "parameters": {
         "mode": "raw",
-        "jsonOutput": "={{ (() => {\n  const ai = JSON.parse($json.message.content);\n  return JSON.stringify({\n    date: $now.format('yyyy-MM-dd'),\n    file_code_name: ai.file_code_name,\n    title_concept: ai.title_concept,\n    hook: ai.hook_text,\n    script: ai.voiceover_script,\n    status: 'Pending',\n    hook_visual_prompt: ai.hook_visual_prompt,\n    veo_prompts: ai.veo_motion_prompts.join(' ||| '),\n    nano_prompts: ai.nano_banana_prompts.join(' ||| '),\n    easter_egg: ai.easter_egg\n  });\n})() }}",
+        "jsonOutput": "={{ (() => {\n  const ai = JSON.parse($json.message.content);\n  return JSON.stringify({\n    date: $now.format('yyyy-MM-dd'),\n    file_code_name: ai.file_code_name,\n    title_concept: ai.title_concept,\n    hook: ai.hook_text,\n    script: ai.voiceover_script,\n    status: 'Pending',\n    hook_visual_prompt: ai.hook_visual_prompt,\n    veo_prompts: ai.veo_motion_prompts.join(' ||| '),\n    nano_prompts: ai.nano_banana_prompts.join(' ||| '),\n    easter_egg: ai.easter_egg,\n    memory_influence: ai.memory_influence || '',\n    performance_context: $('🧠 Format AI Memory').item.json.performance_context || ''\n  });\n})() }}",
         "options": {}
       },
       "id": "parse-ai-response",
       "name": "📋 Parse AI Response",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [700, 300],
-      "notes": "Parses the GPT JSON response into flat fields for Sheets and Telegram.\nVeo and Nano prompts are joined with ' ||| ' delimiter for single-cell storage."
+      "position": [1200, 300],
+      "notes": "Parses the GPT JSON response into flat fields for Sheets and Telegram.\nNow includes memory_influence and performance_context for the Prompt Log."
     },
 
     {
@@ -105,7 +150,7 @@
       "name": "📊 Log to Content Tracker",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [950, 300],
+      "position": [1450, 300],
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
@@ -113,6 +158,45 @@
         }
       },
       "notes": "Appends one row to your 'Roblox Content Tracker' spreadsheet.\nColumn headers MUST exactly match: Date | File Code Name | Title Concept | Hook | Script | Status\nReplace YOUR_GOOGLE_SHEET_ID with the actual spreadsheet ID from the URL."
+    },
+
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Prompt Log",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.date }}",
+            "Prompt Version": "v2-memory",
+            "Top 3 Context": "={{ $json.performance_context }}",
+            "Concept Generated": "={{ $json.file_code_name + ': ' + $json.title_concept }}",
+            "Result Tier": "TBD"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-prompt-log",
+      "name": "📝 Log to Prompt Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1450, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Logs the prompt version, what performance context was fed in,\nand which concept was generated. 'Result Tier' is updated later\nby The Analyst once performance data comes in.\nUsed for A/B testing different prompt strategies."
     },
 
     {
@@ -127,60 +211,42 @@
       "name": "📱 Send Brief to Phone",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [1200, 300],
+      "position": [1700, 300],
       "credentials": {
         "telegramApi": {
           "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
           "name": "Telegram Bot"
         }
       },
-      "notes": "Sends the full production brief to your Telegram chat.\nReplace YOUR_TELEGRAM_CHAT_ID with your personal chat ID.\nTo get your chat ID: message @userinfobot on Telegram.\nTo create a bot: message @BotFather → /newbot."
+      "notes": "Sends the full production brief to your Telegram chat.\nNow includes AI Memory influence at the bottom of the message."
     }
   ],
   "connections": {
     "⏰ 8 AM PHT Daily": {
-      "main": [
-        [
-          {
-            "node": "🧠 Generate Daily Concept",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "📊 Read Analytics History", "type": "main", "index": 0 }]]
+    },
+    "📊 Read Analytics History": {
+      "main": [[{ "node": "🧠 Format AI Memory", "type": "main", "index": 0 }]]
+    },
+    "🧠 Format AI Memory": {
+      "main": [[{ "node": "🧠 Generate Daily Concept", "type": "main", "index": 0 }]]
     },
     "🧠 Generate Daily Concept": {
-      "main": [
-        [
-          {
-            "node": "📋 Parse AI Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "📋 Parse AI Response", "type": "main", "index": 0 }]]
     },
     "📋 Parse AI Response": {
       "main": [
         [
-          {
-            "node": "📊 Log to Content Tracker",
-            "type": "main",
-            "index": 0
-          }
+          { "node": "📊 Log to Content Tracker", "type": "main", "index": 0 },
+          { "node": "📝 Log to Prompt Log", "type": "main", "index": 0 }
         ]
       ]
     },
     "📊 Log to Content Tracker": {
-      "main": [
-        [
-          {
-            "node": "📱 Send Brief to Phone",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "📱 Send Brief to Phone", "type": "main", "index": 0 }]]
+    },
+    "📝 Log to Prompt Log": {
+      "main": [[]]
     }
   },
   "settings": {
