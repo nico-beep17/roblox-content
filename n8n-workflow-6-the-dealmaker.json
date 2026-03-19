@@ -1,0 +1,311 @@
+{
+  "name": "Roblox – The Dealmaker (Brand Outreach)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtDay": 1,
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "schedule-monday",
+      "name": "📅 Monday 9 AM PHT",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 500],
+      "notes": "Fires every Monday at 9:00 AM PHT.\nWeekly cadence to avoid spamming potential sponsors.\nDay 1 of the work week = best time for B2B outreach opens."
+    },
+
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Analytics",
+          "mode": "list"
+        },
+        "options": {
+          "returnAllMatches": true
+        }
+      },
+      "id": "read-all-analytics",
+      "name": "📊 Read All Analytics",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [450, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Reads all analytics data to compute lifetime stats for the media kit."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => {\n  const items = $items('📊 Read All Analytics') || [];\n  const rows = items.map(i => i.json).filter(r => r['Total Views']);\n\n  if (rows.length === 0) return JSON.stringify({ has_data: false });\n\n  const totalViews = rows.reduce((s, r) => s + (parseInt(r['Total Views']) || 0), 0);\n  const totalLikes = rows.reduce((s, r) => s + (parseInt(r['Likes']) || 0), 0);\n  const totalComments = rows.reduce((s, r) => s + (parseInt(r['Comments']) || 0), 0);\n  const totalShares = rows.reduce((s, r) => s + (parseInt(r['Shares']) || 0), 0);\n  const avgViews = Math.round(totalViews / rows.length);\n  const avgEngagement = totalViews > 0 ? (((totalLikes + totalComments + totalShares) / totalViews) * 100).toFixed(2) : '0';\n  const viralCount = rows.filter(r => (r['Tier'] || '').includes('VIRAL')).length;\n  const videosPublished = rows.length;\n\n  // Platform breakdown\n  const platforms = {};\n  rows.forEach(r => {\n    const p = r['Top Platform'] || 'Unknown';\n    platforms[p] = (platforms[p] || 0) + 1;\n  });\n  const topPlatform = Object.entries(platforms).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';\n\n  // Last 30 days stats\n  const cutoff30 = new Date();\n  cutoff30.setDate(cutoff30.getDate() - 30);\n  const last30 = rows.filter(r => new Date(r['Date']) >= cutoff30);\n  const views30 = last30.reduce((s, r) => s + (parseInt(r['Total Views']) || 0), 0);\n\n  return JSON.stringify({\n    has_data: true,\n    lifetime_views: totalViews,\n    lifetime_likes: totalLikes,\n    lifetime_comments: totalComments,\n    lifetime_shares: totalShares,\n    videos_published: videosPublished,\n    avg_views_per_video: avgViews,\n    avg_engagement_rate: avgEngagement + '%',\n    viral_videos: viralCount,\n    viral_rate: videosPublished > 0 ? ((viralCount / videosPublished) * 100).toFixed(1) + '%' : '0%',\n    top_platform: topPlatform,\n    views_last_30_days: views30,\n    date_generated: new Date().toISOString().split('T')[0]\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "compute-media-kit",
+      "name": "📈 Compute Media Kit Stats",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [700, 500],
+      "notes": "Computes lifetime analytics for the media kit:\ntotal views, avg views/video, engagement rate, viral rate,\ntop platform, 30-day views, and videos published."
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.has_data }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-data",
+      "name": "🔀 Has Analytics?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [950, 500],
+      "notes": "Only proceeds if there's analytics data. Skips brand outreach if no content has been published yet."
+    },
+
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Brand Leads",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Pending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "read-leads",
+      "name": "🎯 Get Pending Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1200, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Reads leads with Status = 'Pending' from the 'Brand Leads' sheet tab.\nCreate this tab with columns:\nBrand Name | Contact Email | Category | Website | Notes | Status | Last Contacted\n\nAdd leads manually or via scraping. Status values:\nPending → Emailed → Replied → Closed → Rejected"
+    },
+
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a professional brand partnership outreach specialist for a gaming content creator. Write a personalized sponsorship pitch email.\n\nTone: Professional but Gen-Z aware. Confident, not desperate. Data-driven.\nLength: 150-200 words max.\nFormat: Subject line on first line, then blank line, then email body.\n\nInclude:\n1. A hook referencing something specific about the brand\n2. Quick creator stats (from the media kit data)\n3. A specific collaboration idea tailored to the brand\n4. A soft CTA (\"Would love to explore this\")\n5. Sign off as the creator\n\nDo NOT include fake testimonials or inflated numbers. Use only the stats provided."
+            },
+            {
+              "role": "user",
+              "content": "=Write a sponsorship pitch for:\n\nBrand: {{ $json['Brand Name'] }}\nCategory: {{ $json['Category'] || 'Gaming' }}\nWebsite: {{ $json['Website'] || 'N/A' }}\nNotes: {{ $json['Notes'] || 'None' }}\n\nMy Creator Stats:\n- {{ $('📈 Compute Media Kit Stats').item.json.videos_published }} videos published\n- {{ $('📈 Compute Media Kit Stats').item.json.lifetime_views.toLocaleString() }} lifetime views\n- {{ $('📈 Compute Media Kit Stats').item.json.avg_views_per_video.toLocaleString() }} avg views/video\n- {{ $('📈 Compute Media Kit Stats').item.json.avg_engagement_rate }} engagement rate\n- {{ $('📈 Compute Media Kit Stats').item.json.viral_videos }} viral videos (100K+ views)\n- Top platform: {{ $('📈 Compute Media Kit Stats').item.json.top_platform }}\n- {{ $('📈 Compute Media Kit Stats').item.json.views_last_30_days.toLocaleString() }} views in last 30 days\n- Audience: Gen Z / Gen Alpha, US & Canada, Roblox gaming community\n\nWrite the personalized pitch email now."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 500
+        }
+      },
+      "id": "openai-pitch",
+      "name": "🧠 Generate Pitch Email",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [1450, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "Generates a personalized sponsorship pitch email for each brand lead.\nUses real analytics data — no inflation.\nSubject line is the first line of the response."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => {\n  const emailContent = $json.message.content;\n  const lines = emailContent.split('\\n');\n  const subject = lines[0].replace(/^Subject:\\s*/i, '').trim();\n  const body = lines.slice(2).join('\\n').trim();\n\n  return JSON.stringify({\n    brand_name: $('🎯 Get Pending Leads').item.json['Brand Name'],\n    contact_email: $('🎯 Get Pending Leads').item.json['Contact Email'],\n    subject: subject,\n    body: body,\n    row_number: $('🎯 Get Pending Leads').item.json.row_number || ''\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "parse-email",
+      "name": "📋 Parse Email",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1700, 400],
+      "notes": "Separates the subject line from the email body for the Gmail send node."
+    },
+
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=📧 *BRAND PITCH READY FOR REVIEW*\n\n🏢 *Brand:* {{ $json.brand_name }}\n📩 *To:* {{ $json.contact_email }}\n\n📝 *Subject:* {{ $json.subject }}\n\n💬 *Email Body:*\n{{ $json.body }}\n\n✅ Reply 'SEND' to this chat to approve and send.\n❌ Reply 'SKIP' to skip this brand.\n✏️ Or reply with edits and I'll regenerate.\n\n_This email will NOT be sent automatically — you must approve it first._",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-review",
+      "name": "📱 Send for Review",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1950, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "notes": "HUMAN IN THE LOOP — Sends the draft pitch to Telegram for your review.\nThe email is NOT auto-sent. You review, edit, then manually send or\ntrigger a send via a separate approval workflow.\nThis prevents embarrassing auto-sent emails with wrong data."
+    },
+
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Brand Leads",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Brand Name",
+              "lookupValue": "={{ $json.brand_name }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "Draft Sent",
+            "Last Contacted": "={{ $now.format('yyyy-MM-dd') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-update-lead",
+      "name": "📊 Update Lead Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2200, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Updates the brand lead's status to 'Draft Sent' and logs the contact date.\nAfter you manually send the email, update to 'Emailed' in the sheet."
+    },
+
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=⏩ *DEALMAKER SKIPPED*\n📅 {{ $now.format('yyyy-MM-dd') }}\n\nNo analytics data yet. Publish content first, then the Dealmaker will generate brand pitches with real stats.\n\nTarget: 14+ published videos before starting outreach.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-no-data",
+      "name": "📱 No Data Yet",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1200, 650],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "notes": "Notifies you if the Dealmaker can't run because no analytics data exists yet."
+    }
+  ],
+  "connections": {
+    "📅 Monday 9 AM PHT": {
+      "main": [[{ "node": "📊 Read All Analytics", "type": "main", "index": 0 }]]
+    },
+    "📊 Read All Analytics": {
+      "main": [[{ "node": "📈 Compute Media Kit Stats", "type": "main", "index": 0 }]]
+    },
+    "📈 Compute Media Kit Stats": {
+      "main": [[{ "node": "🔀 Has Analytics?", "type": "main", "index": 0 }]]
+    },
+    "🔀 Has Analytics?": {
+      "main": [
+        [{ "node": "🎯 Get Pending Leads", "type": "main", "index": 0 }],
+        [{ "node": "📱 No Data Yet", "type": "main", "index": 0 }]
+      ]
+    },
+    "🎯 Get Pending Leads": {
+      "main": [[{ "node": "🧠 Generate Pitch Email", "type": "main", "index": 0 }]]
+    },
+    "🧠 Generate Pitch Email": {
+      "main": [[{ "node": "📋 Parse Email", "type": "main", "index": 0 }]]
+    },
+    "📋 Parse Email": {
+      "main": [[{ "node": "📱 Send for Review", "type": "main", "index": 0 }]]
+    },
+    "📱 Send for Review": {
+      "main": [[{ "node": "📊 Update Lead Status", "type": "main", "index": 0 }]]
+    },
+    "📊 Update Lead Status": {
+      "main": [[]]
+    },
+    "📱 No Data Yet": {
+      "main": [[]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Manila"
+  },
+  "tags": [
+    {
+      "name": "Roblox Content Machine"
+    }
+  ]
+}

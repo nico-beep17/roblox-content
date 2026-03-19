@@ -94,29 +94,32 @@ Built **Workflow 5: "The Compiler"** (`n8n-workflow-5-the-compiler.json`) — 10
 ## Phase 4: Monetization Engine 💰
 > *Turn views into revenue streams.*
 
-### 4.1 — YouTube Partner Program (YPP)
+### 4.1 — YouTube Partner Program (YPP) 🎯 *Milestone*
 - [ ] Hit 1,000 subscribers + 10 million Shorts views in 90 days
 - [ ] Enable Shorts monetization (45% ad revenue share)
 - [ ] Track estimated revenue in the Analytics sheet
 
-### 4.2 — TikTok Creator Rewards Program
+### 4.2 — TikTok Creator Rewards Program 🎯 *Milestone*
 - [ ] Hit 10,000 followers + 100,000 views in 30 days
 - [ ] Enable Creator Rewards (requires videos >1 min — consider extending to 50–59s)
 - [ ] Track TikTok earnings separately
 
-### 4.3 — Brand Deal Pipeline
-- [ ] Build a **Workflow 6: "The Dealmaker"**:
-  - Scrape brand/gaming sponsor leads from SparkToro, Upfluence, or manual lists
-  - GPT generates a personalized outreach email based on the brand + your analytics
-  - Sends via Gmail API with follow-up reminders
-- [ ] Media kit auto-generated from your Analytics sheet (total views, average engagement, demographics)
+### 4.3 — Brand Deal Pipeline ✅
+Built **Workflow 6: "The Dealmaker"** (`n8n-workflow-6-the-dealmaker.json`) — 10 nodes:
+- [x] Monday 9 AM trigger (weekly cadence)
+- [x] Auto-computes media kit from lifetime analytics (views, engagement, viral rate, 30-day stats)
+- [x] Reads pending brand leads from `Brand Leads` sheet tab
+- [x] GPT-4o generates personalized pitch email with real creator stats
+- [x] **Human-in-the-loop** — draft sent to Telegram for review (NOT auto-emailed)
+- [x] Updates lead status + contact date in tracker
+- [x] Graceful skip if no analytics data yet
 
-### 4.4 — Affiliate & Merch
-- [ ] Drop Roblox-themed merch links (Spring, Printful) in all video descriptions
+### 4.4 — Affiliate & Merch ⏳ *Deferred*
+- [ ] Add UTM-tracked merch/affiliate links to video descriptions (after first brand deals close)
 - [ ] Use unique UTM links per platform to track conversion source
 - [ ] Affiliate Roblox gift cards via Amazon Associates
 
-**Outcome:** Multiple revenue streams — ad revenue, creator funds, brand deals, merch/affiliate.
+**Outcome:** Brand outreach automated with HITL guardrail. YPP/Creator Rewards are growth milestones to hit organically.
 
 ---
 
@@ -158,8 +161,8 @@ Built **Workflow 5: "The Compiler"** (`n8n-workflow-5-the-compiler.json`) — 10
 Phase 1  ████████████████████████  Mar 2026    ✅ DONE
 Phase 2  ████████████████████████  Mar 2026    ✅ DONE
 Phase 3  ████████████████████████  Mar 2026    ✅ DONE (A/B defer)
-Phase 4  ░░░░░░░░░░░░░░░░░░░░░░░  Apr–May     ← NEXT
-Phase 5  ░░░░░░░░░░░░░░░░░░░░░░░  Q3 2026+
+Phase 4  ████████████████████████  Mar 2026    ✅ DONE (milestones pending)
+Phase 5  ░░░░░░░░░░░░░░░░░░░░░░░  Q2–Q3      ← NEXT
 ```
 
 ---
