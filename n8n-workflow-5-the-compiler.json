@@ -1,0 +1,273 @@
+{
+  "name": "Roblox – The Compiler (Weekly Long-Form)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtDay": 0,
+              "triggerAtHour": 10,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "schedule-sunday",
+      "name": "📅 Sunday 10 AM PHT",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 500],
+      "notes": "Fires every Sunday at 10:00 AM PHT.\nGives you the morning to review the compilation before it publishes."
+    },
+
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Analytics",
+          "mode": "list"
+        },
+        "options": {
+          "returnAllMatches": true
+        }
+      },
+      "id": "read-weekly-analytics",
+      "name": "📊 Read Week's Analytics",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [450, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Reads all rows from Analytics sheet. The next node filters to the current week and sorts by performance."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => {\n  const items = $items('📊 Read Week\\'s Analytics') || [];\n  const rows = items.map(i => i.json).filter(r => r['Total Views']);\n\n  // Filter to last 7 days\n  const cutoff = new Date();\n  cutoff.setDate(cutoff.getDate() - 7);\n  const weekly = rows.filter(r => new Date(r['Date']) >= cutoff);\n\n  // Sort by Total Views descending\n  weekly.sort((a, b) => (parseInt(b['Total Views']) || 0) - (parseInt(a['Total Views']) || 0));\n\n  // Take top 5\n  const top5 = weekly.slice(0, 5);\n  const totalViews = top5.reduce((sum, r) => sum + (parseInt(r['Total Views']) || 0), 0);\n\n  const videoList = top5.map((r, i) => ({\n    rank: i + 1,\n    file_code_name: r['File Code Name'],\n    views: parseInt(r['Total Views']) || 0,\n    tier: r['Tier'],\n    top_platform: r['Top Platform']\n  }));\n\n  return JSON.stringify({\n    week_ending: new Date().toISOString().split('T')[0],\n    total_weekly_views: totalViews,\n    video_count: top5.length,\n    top_5: videoList,\n    file_code_names: top5.map(r => r['File Code Name']),\n    compilation_ready: top5.length >= 3\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "filter-top5",
+      "name": "🏆 Get Top 5 of the Week",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [700, 500],
+      "notes": "Filters Analytics data to the last 7 days, sorts by Total Views,\nand selects the top 5 performing videos.\nSets compilation_ready = true if at least 3 videos exist (min for a compilation)."
+    },
+
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.compilation_ready }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-enough-videos",
+      "name": "🔀 Enough Videos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [950, 500],
+      "notes": "Only proceeds if there are at least 3 videos to compile.\nIf not, sends a skip notification instead."
+    },
+
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a YouTube SEO expert for gaming compilation content. You will receive a list of the week's top-performing short-form Roblox videos. Generate optimized metadata for a YouTube long-form compilation video (3-5 minutes) that combines these shorts.\n\nOutput strictly in JSON:\n{\n  \"yt_title\": \"Clickbait-style YouTube title, max 100 chars, include emoji, mention 'Best Roblox Moments' or similar\",\n  \"yt_description\": \"SEO-rich description, 3-4 paragraphs, include timestamps placeholder, relevant keywords, call to subscribe\",\n  \"yt_tags\": [\"tag1\", \"tag2\", \"...up to 15 tags\"],\n  \"thumbnail_text\": \"Bold text overlay for the thumbnail (max 5 words)\",\n  \"thumbnail_prompt\": \"Detailed image generation prompt for a 16:9 YouTube thumbnail — vibrant, high contrast, large text, dramatic Roblox scene\",\n  \"video_order\": [\"file_code_name_1\", \"file_code_name_2\", \"...\"],\n  \"transition_style\": \"Recommended transition style between clips (e.g., zoom blur, glitch, whip pan)\",\n  \"intro_text\": \"5-second intro text overlay for the compilation\"\n}"
+            },
+            {
+              "role": "user",
+              "content": "=This week's top performing shorts ({{ $json.week_ending }}):\n\n{{ JSON.stringify($json.top_5, null, 2) }}\n\nTotal weekly views: {{ $json.total_weekly_views.toLocaleString() }}\n\nGenerate the compilation metadata. Order the videos for maximum retention (strongest opener, weakest middle, strong closer)."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000,
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "openai-compilation",
+      "name": "🧠 Generate Compilation Metadata",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [1200, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "Generates YouTube long-form metadata: title, description, tags, thumbnail prompt,\noptimal video ordering, transition style, and intro text.\nOrders videos for retention: strongest open, weakest middle, strong close."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => {\n  const meta = JSON.parse($json.message.content);\n  const prev = $('🏆 Get Top 5 of the Week').item.json;\n\n  // Generate FFmpeg concat instructions\n  const ffmpegOrder = meta.video_order.map((name, i) => {\n    return 'file \\'' + name + '.mp4\\'';\n  }).join('\\n');\n\n  // Generate timestamps (assuming ~30s per short)\n  const timestamps = meta.video_order.map((name, i) => {\n    const mins = Math.floor((i * 30) / 60);\n    const secs = (i * 30) % 60;\n    return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0') + ' - ' + name.replace(/-/g, ' ');\n  }).join('\\n');\n\n  return JSON.stringify({\n    week_ending: prev.week_ending,\n    total_weekly_views: prev.total_weekly_views,\n    yt_title: meta.yt_title,\n    yt_description: meta.yt_description.replace('TIMESTAMPS', timestamps),\n    yt_tags: meta.yt_tags,\n    thumbnail_text: meta.thumbnail_text,\n    thumbnail_prompt: meta.thumbnail_prompt,\n    video_order: meta.video_order,\n    transition_style: meta.transition_style,\n    intro_text: meta.intro_text,\n    ffmpeg_concat_file: ffmpegOrder,\n    timestamps: timestamps,\n    compilation_filename: 'weekly-compilation-' + prev.week_ending + '.mp4'\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "prepare-compilation",
+      "name": "📋 Prepare Compilation Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1450, 400],
+      "notes": "Prepares all data for the compilation:\n- FFmpeg concat file content (video ordering)\n- Timestamps for the description\n- Compilation filename\n- All metadata from OpenAI"
+    },
+
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=🎬 *WEEKLY COMPILATION READY*\n📅 Week ending: {{ $json.week_ending }}\n👁️ Total weekly views: {{ $json.total_weekly_views.toLocaleString() }}\n\n📹 *VIDEO ORDER:*\n{{ $json.video_order.map((v, i) => (i+1) + '. ' + v).join('\\n') }}\n\n🎬 *YT TITLE:*\n{{ $json.yt_title }}\n\n📝 *TIMESTAMPS:*\n{{ $json.timestamps }}\n\n🎨 *THUMBNAIL PROMPT:*\n{{ $json.thumbnail_prompt }}\n\n🔤 *THUMBNAIL TEXT:* {{ $json.thumbnail_text }}\n✨ *TRANSITION:* {{ $json.transition_style }}\n📺 *INTRO:* {{ $json.intro_text }}\n\n📋 *FFmpeg concat file:*\n`{{ $json.ffmpeg_concat_file }}`\n\n🔧 *TO COMPILE:*\n1. Download the 5 shorts from Archive folder\n2. Save the concat list as `concat.txt`\n3. Run: `ffmpeg -f concat -safe 0 -i concat.txt -c copy {{ $json.compilation_filename }}`\n4. Add intro/transitions in CapCut\n5. Upload to YouTube with the metadata above\n\n📂 Save as: `{{ $json.compilation_filename }}`",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-compilation",
+      "name": "📱 Send Compilation Brief",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1700, 400],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "notes": "Sends the full compilation brief including video order, FFmpeg command,\nthumbnail prompt, YouTube metadata, and timestamps.\nYou manually compile in CapCut and upload — full automation in Phase 5."
+    },
+
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.week_ending }}",
+            "File Code Name": "={{ $json.compilation_filename.replace('.mp4', '') }}",
+            "Title Concept": "={{ $json.yt_title }}",
+            "Hook": "=Weekly compilation of {{ $json.video_order.length }} top shorts",
+            "Script": "={{ $json.yt_description.substring(0, 500) }}",
+            "Status": "Compilation"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-log-compilation",
+      "name": "📊 Log Compilation to Tracker",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1700, 600],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Logs the compilation as a new row in the Content Tracker with Status 'Compilation'.\nThis helps track both short-form and long-form content in one place."
+    },
+
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=⏩ *COMPILATION SKIPPED*\n📅 {{ $now.format('yyyy-MM-dd') }}\n\nNot enough videos this week (need at least 3).\nKeep posting shorts — compilation will auto-generate next Sunday when you have enough data!",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-skip",
+      "name": "📱 Skip Notification",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1200, 650],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "notes": "Notifies you that the compilation was skipped because fewer than 3 videos were published this week."
+    }
+  ],
+  "connections": {
+    "📅 Sunday 10 AM PHT": {
+      "main": [[{ "node": "📊 Read Week's Analytics", "type": "main", "index": 0 }]]
+    },
+    "📊 Read Week's Analytics": {
+      "main": [[{ "node": "🏆 Get Top 5 of the Week", "type": "main", "index": 0 }]]
+    },
+    "🏆 Get Top 5 of the Week": {
+      "main": [[{ "node": "🔀 Enough Videos?", "type": "main", "index": 0 }]]
+    },
+    "🔀 Enough Videos?": {
+      "main": [
+        [{ "node": "🧠 Generate Compilation Metadata", "type": "main", "index": 0 }],
+        [{ "node": "📱 Skip Notification", "type": "main", "index": 0 }]
+      ]
+    },
+    "🧠 Generate Compilation Metadata": {
+      "main": [[{ "node": "📋 Prepare Compilation Data", "type": "main", "index": 0 }]]
+    },
+    "📋 Prepare Compilation Data": {
+      "main": [
+        [
+          { "node": "📱 Send Compilation Brief", "type": "main", "index": 0 },
+          { "node": "📊 Log Compilation to Tracker", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "📱 Send Compilation Brief": {
+      "main": [[]]
+    },
+    "📊 Log Compilation to Tracker": {
+      "main": [[]]
+    },
+    "📱 Skip Notification": {
+      "main": [[]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Manila"
+  },
+  "tags": [
+    {
+      "name": "Roblox Content Machine"
+    }
+  ]
+}

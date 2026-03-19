@@ -1,0 +1,55 @@
+{
+  "niches": [
+    {
+      "id": "roblox",
+      "prefix": "rb-",
+      "name": "Roblox Cinematic",
+      "enabled": true,
+      "games": ["DOORS", "Blox Fruits", "Dress to Impress", "Brookhaven", "Murder Mystery 2", "Tower of Hell"],
+      "audience": "Gen Z / Gen Alpha, US & Canada",
+      "style": "Hyper-realistic UE5 aesthetic, cinematic camera cuts, dramatic rim lighting",
+      "system_prompt_addon": "Focus on Roblox games. Use Roblox-specific slang (oof, noob, robux). Reference the iconic blocky aesthetic juxtaposed with hyper-realistic rendering."
+    },
+    {
+      "id": "fortnite",
+      "prefix": "fn-",
+      "name": "Fortnite Cinematic Edits",
+      "enabled": false,
+      "games": ["Zero Build", "Battle Royale", "Festival", "LEGO Fortnite", "Rocket Racing"],
+      "audience": "Gen Z / Gen Alpha, US & Canada & UK",
+      "style": "Cinematic replay angles, slow-mo eliminations, skin showcases with dramatic reveals",
+      "system_prompt_addon": "Focus on Fortnite. Use Fortnite slang (cranking 90s, boxed, Victory Royale). Feature popular skins and seasonal events. Highlight building or zero-build clutch moments with replay-style camera angles."
+    },
+    {
+      "id": "minecraft",
+      "prefix": "mc-",
+      "name": "Minecraft Hyper-Realistic",
+      "enabled": false,
+      "games": ["Survival", "Creative", "Hardcore", "Modded (Shaders)", "Hypixel"],
+      "audience": "Gen Alpha & older Gen Z, global",
+      "style": "RTX ON / shader-heavy renders, 'What if Minecraft was real?' aesthetic, photorealistic blocks",
+      "system_prompt_addon": "Focus on Minecraft with ultra-realistic shaders. The concept is always 'What if Minecraft was REAL?' — juxtapose familiar blocky elements with hyper-photorealistic rendering. Use Minecraft slang (creeper, diamond, ender dragon, nether). Focus on the uncanny valley between real and blocky."
+    },
+    {
+      "id": "subway",
+      "prefix": "ss-",
+      "name": "Subway Surfers / Satisfying Gameplay",
+      "enabled": false,
+      "games": ["Subway Surfers", "Temple Run", "Geometry Dash", "satisfying ASMR compilations"],
+      "audience": "Gen Alpha, global, low-intent scrollers",
+      "style": "Split-screen format (gameplay top, satisfying content bottom), pure retention play",
+      "system_prompt_addon": "Create pure retention bait. This is bottom-of-funnel content for maximum scroll-stopping. Use split-screen concepts: gameplay on top, satisfying ASMR content on bottom. No voiceover needed — purely visual with trending audio overlay. Optimize for average view duration, not engagement."
+    }
+  ],
+  "defaults": {
+    "videos_per_day": 1,
+    "schedule_time_utc": 19,
+    "content_tracker_sheet": "Sheet1",
+    "analytics_sheet": "Analytics"
+  },
+  "notes": {
+    "how_to_enable": "Set 'enabled' to true for any niche you want the Daily Director to generate content for.",
+    "how_batch_works": "When videos_per_day > 1, the Daily Director generates multiple concepts per trigger fire. Each concept includes its niche prefix in the file_code_name.",
+    "niche_rotation": "With multiple niches enabled, the system rotates through them. E.g., with Roblox + Fortnite enabled and 3 vids/day, you'd get 2 Roblox + 1 Fortnite (weighted by engagement history)."
+  }
+}

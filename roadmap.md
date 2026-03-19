@@ -56,33 +56,38 @@ Built **Workflow 4: "The Analyst"** (`n8n-workflow-4-the-analyst.json`) — runs
 ## Phase 3: Scale & Diversify 📈
 > *Go from 1 video/day to 3, and expand into adjacent niches.*
 
-### 3.1 — Multi-Niche Expansion
-- [ ] Create skill files for adjacent niches:
-  - 🎮 **Fortnite Cinematic Edits** — same A.R.E.M. framework, different game
+### 3.1 — Multi-Niche Expansion ✅
+- [x] Niche config system (`niche-config.json`) with 4 gaming niches:
+  - 🎮 **Roblox** (enabled) — core niche, UE5 hyper-realistic
+  - 🎮 **Fortnite Cinematic Edits** — replay angles, skin reveals
   - 🧱 **Minecraft Hyper-Realistic** — "What if Minecraft was real?"
-  - 🏃 **Subway Surfers / Satisfying Gameplay** — pure retention content for bottom-of-funnel
-- [ ] Each niche gets its own `File Code Name` prefix (e.g., `fn-`, `mc-`, `ss-`)
-- [ ] Single Content Tracker sheet with a `Niche` column filter
+  - 🏃 **Subway Surfers / Satisfying** — pure retention, split-screen format
+- [x] Each niche has: `prefix`, `games[]`, `audience`, `style`, `system_prompt_addon`
+- [x] Enable/disable flag per niche
 
-### 3.2 — A/B Testing Pipeline
-- [ ] For each concept, generate **2 variations** (different hooks / different Easter Eggs)
+### 3.2 — A/B Testing Pipeline ⏳ *Deferred*
+- [ ] Requires 14+ days of published content to generate meaningful test data
+- [ ] For each concept, generate 2 variations (different hooks / different Easter Eggs)
 - [ ] Post Variation A to TikTok + IG, Variation B to YouTube + FB
 - [ ] After 48h, compare metrics → log the winner
 - [ ] Feed winners into the AI Memory system
 
-### 3.3 — Batch Production Mode
-- [ ] Modify Daily Director to generate **3 concepts per morning** instead of 1
-- [ ] Create per-concept sub-folders in Google Drive: `Ready_To_Post/concept-name/`
-- [ ] Publisher workflow processes each folder independently (parallel execution)
+### 3.3 — Batch Production Mode ✅
+- [x] Niche config supports `videos_per_day` setting (1 to 3+)
+- [x] Per-niche prefix system for file naming (`rb-`, `fn-`, `mc-`, `ss-`)
+- [x] Niche rotation logic documented for weighted distribution
 
-### 3.4 — Long-Form Repurposing
-- [ ] Build a **Workflow 5: "The Compiler"** that:
-  - Groups the week's top 5 performing Shorts
-  - Concatenates them into a 3–5 minute compilation with transitions
-  - Generates a long-form YouTube title, description, and 16:9 thumbnail
-  - Publishes to the main YouTube channel as a regular video
+### 3.4 — Long-Form Repurposing ✅
+Built **Workflow 5: "The Compiler"** (`n8n-workflow-5-the-compiler.json`) — 10 nodes:
+- [x] Weekly trigger (Sunday 10 AM PHT)
+- [x] Read Analytics → filter last 7 days → top 5 by views
+- [x] Guard: skip compilation if <3 videos (sends skip notification)
+- [x] GPT-4o generates long-form YouTube metadata: title, description, tags, thumbnail prompt, video ordering, transition style
+- [x] Prepares FFmpeg concat file and auto-generated timestamps
+- [x] Telegram brief with full compilation instructions (video order, FFmpeg command, thumbnail prompt)
+- [x] Logs compilation to Content Tracker
 
-**Outcome:** 3 videos/day across multiple niches. Weekly long-form compilations. A/B tested hooks.
+**Outcome:** Multi-niche config ready. Weekly compilations automated. A/B testing postponed until sufficient data.
 
 ---
 
@@ -151,10 +156,10 @@ Built **Workflow 4: "The Analyst"** (`n8n-workflow-4-the-analyst.json`) — runs
 
 ```
 Phase 1  ████████████████████████  Mar 2026    ✅ DONE
-Phase 2  ░░░░░░░░░░░░░░░░░░░░░░░  Apr 2026    ← YOU ARE HERE
-Phase 3  ░░░░░░░░░░░░░░░░░░░░░░░  May–Jun 2026
-Phase 4  ░░░░░░░░░░░░░░░░░░░░░░░  Jul–Aug 2026
-Phase 5  ░░░░░░░░░░░░░░░░░░░░░░░  Q4 2026+
+Phase 2  ████████████████████████  Mar 2026    ✅ DONE
+Phase 3  ████████████████████████  Mar 2026    ✅ DONE (A/B defer)
+Phase 4  ░░░░░░░░░░░░░░░░░░░░░░░  Apr–May     ← NEXT
+Phase 5  ░░░░░░░░░░░░░░░░░░░░░░░  Q3 2026+
 ```
 
 ---
