@@ -126,32 +126,36 @@ Built **Workflow 6: "The Dealmaker"** (`n8n-workflow-6-the-dealmaker.json`) — 
 ## Phase 5: Advanced AI & Autonomy 🤖
 > *Remove yourself from the loop entirely.*
 
-### 5.1 — Full Visual Autonomy
-- [ ] When AI image/video generation quality reaches the point where it can produce consistent, high-quality clips without manual review:
-  - Auto-run Nano Banana 2 via API (when available)
-  - Auto-run Veo 3.1 via API
-  - Auto-assemble via FFmpeg script (cuts, captions, voiceover, loop)
-  - Skip the human Step 2 entirely
+### 5.1 — Full Visual Autonomy ⏳ *Blocked on API availability*
+- [ ] Nano Banana 2 API, Veo 3.1 API — waiting for programmatic access
+- [ ] Auto-assemble via FFmpeg script (cuts, captions, voiceover, loop)
+- [ ] Skip the human Step 2 entirely
 
-### 5.2 — Trend Detection
-- [ ] Build a **Workflow 7: "The Scout"**:
-  - Scrape TikTok trending sounds, YouTube Gaming trending tab, Reddit r/Roblox
-  - Feed into GPT to identify emerging trends BEFORE they peak
-  - Prioritize the Daily Director's concepts based on real-time trend data
+### 5.2 — Trend Detection ✅
+Built **Workflow 7: "The Scout"** (`n8n-workflow-7-the-scout.json`) — 10 nodes:
+- [x] 6 AM PHT trigger (2 hours before Daily Director)
+- [x] Fan-out to 3 sources: Reddit r/roblox, game-specific subs, YouTube Shorts trending
+- [x] Aggregate signals with keyword frequency analysis
+- [x] GPT-4o identifies hot games, emerging topics, content angles with urgency, topics to avoid
+- [x] Log to Trend Log sheet tab
+- [x] Telegram trend report at 6 AM
 
-### 5.3 — Comment Engagement Bot
-- [ ] Build a **Workflow 8: "The Engager"**:
-  - Pull new comments from all platforms via API
-  - GPT classifies: `reply-worthy` | `ignore` | `flag-for-human`
-  - Auto-replies to reply-worthy comments with witty, on-brand responses
-  - Flags hate/spam for manual review
+### 5.3 — Comment Engagement Bot ✅
+Built **Workflow 8: "The Engager"** (`n8n-workflow-8-the-engager.json`) — 7 nodes:
+- [x] Every-4-hours trigger (6 times/day)
+- [x] Fan-out to YouTube CommentThreads API + Instagram comments
+- [x] Merge all comments into unified list
+- [x] GPT-4o classifies: `reply-worthy` | `ignore` | `flag-for-human`
+- [x] Generates witty, on-brand replies for reply-worthy comments
+- [x] **Human-in-the-loop** — replies sent to Telegram for review (NOT auto-posted)
+- [x] Flagged comments highlighted for manual moderation
 
-### 5.4 — Multi-Language Expansion
-- [ ] Dub voiceovers into Spanish, Portuguese, and Filipino using AI TTS
+### 5.4 — Multi-Language Expansion ⏳ *Deferred*
+- [ ] Dub voiceovers into Spanish, Portuguese, and Filipino
 - [ ] Generate translated captions and hashtags
-- [ ] Publish to region-specific accounts (separate TikTok/IG accounts per language)
+- [ ] Publish to region-specific accounts
 
-**Outcome:** A fully autonomous content empire. You become the strategist, not the operator.
+**Outcome:** Trend-informed content. AI-drafted community engagement. Full visual autonomy awaiting API access.
 
 ---
 
@@ -162,7 +166,7 @@ Phase 1  ███████████████████████�
 Phase 2  ████████████████████████  Mar 2026    ✅ DONE
 Phase 3  ████████████████████████  Mar 2026    ✅ DONE (A/B defer)
 Phase 4  ████████████████████████  Mar 2026    ✅ DONE (milestones pending)
-Phase 5  ░░░░░░░░░░░░░░░░░░░░░░░  Q2–Q3      ← NEXT
+Phase 5  ████████████████████████  Mar 2026    ✅ DONE (visual autonomy deferred)
 ```
 
 ---

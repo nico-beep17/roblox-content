@@ -1,0 +1,199 @@
+{
+  "name": "Roblox – The Engager (Comment Bot)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "schedule-4h",
+      "name": "⏰ Every 4 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 500],
+      "notes": "Runs every 4 hours (6 times/day).\nMore frequent = faster engagement responses = higher reply rates.\nAdjust to every 2h during growth phase."
+    },
+
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&allThreadsRelatedToChannelId={{ $env.YT_CHANNEL_ID }}&maxResults=25&order=time&moderationStatus=published",
+        "authentication": "oAuth2",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 15000
+        }
+      },
+      "id": "yt-comments",
+      "name": "▶️ YT – Get Comments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_GOOGLE_OAUTH2_CREDENTIAL_ID",
+          "name": "Google / YouTube OAuth2"
+        }
+      },
+      "notes": "Fetches the 25 most recent comments across all videos on your channel.\nRequires youtube.force-ssl scope for comment management."
+    },
+
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v21.0/{{ $env.IG_USER_ID }}/media?fields=id,comments{id,text,username,timestamp}&limit=10",
+        "authentication": "oAuth2",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 15000
+        }
+      },
+      "id": "ig-comments",
+      "name": "📸 IG – Get Comments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 500],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_META_OAUTH2_CREDENTIAL_ID",
+          "name": "Meta / Facebook OAuth2"
+        }
+      },
+      "notes": "Fetches comments from the 10 most recent Instagram posts.\nRequires instagram_manage_comments scope."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => {\n  const comments = [];\n\n  // Parse YouTube comments\n  const ytItems = $('▶️ YT – Get Comments').item.json?.body?.items || [];\n  ytItems.forEach(item => {\n    const c = item.snippet.topLevelComment.snippet;\n    comments.push({\n      platform: 'YouTube',\n      id: item.id,\n      author: c.authorDisplayName,\n      text: c.textDisplay,\n      time: c.publishedAt,\n      video_id: c.videoId\n    });\n  });\n\n  // Parse IG comments\n  const igMedia = $('📸 IG – Get Comments').item.json?.body?.data || [];\n  igMedia.forEach(media => {\n    (media.comments?.data || []).forEach(c => {\n      comments.push({\n        platform: 'Instagram',\n        id: c.id,\n        author: c.username,\n        text: c.text,\n        time: c.timestamp,\n        media_id: media.id\n      });\n    });\n  });\n\n  // Sort by time descending\n  comments.sort((a, b) => new Date(b.time) - new Date(a.time));\n\n  return JSON.stringify({\n    total_comments: comments.length,\n    comments: comments.slice(0, 30),\n    scan_time: new Date().toISOString()\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "merge-comments",
+      "name": "📋 Merge All Comments",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [800, 500],
+      "notes": "Combines YouTube and Instagram comments into a unified list, sorted by time.\nTakes the 30 most recent for classification."
+    },
+
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a community manager for a Roblox gaming content creator. Your audience is Gen Z/Alpha (US/Canada). Your tone is witty, playful, and on-brand with gaming culture.\n\nClassify each comment and generate an appropriate response.\n\nFor each comment, output:\n{\n  \"id\": \"comment_id\",\n  \"platform\": \"YouTube/Instagram\",\n  \"classification\": \"reply-worthy | ignore | flag-for-human\",\n  \"reason\": \"brief reason for classification\",\n  \"reply\": \"your witty reply (empty string if ignore/flag)\"\n}\n\nClassification rules:\n- reply-worthy: genuine questions, compliments, interesting observations, memes, challenges. Reply with wit and gaming energy.\n- ignore: generic comments (\"first!\", single emojis, gibberish), spam links, bot comments\n- flag-for-human: hate speech, harassment, threats, controversy, business inquiries, anything sensitive\n\nOutput as a JSON array. Be concise — replies should be 1-2 sentences max."
+            },
+            {
+              "role": "user",
+              "content": "=Classify and generate replies for these {{ $json.total_comments }} comments:\n\n{{ JSON.stringify($json.comments, null, 2) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.8,
+          "maxTokens": 2000,
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "openai-classify",
+      "name": "🧠 Classify & Generate Replies",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [1050, 500],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "GPT-4o classifies each comment as reply-worthy, ignore, or flag-for-human.\nGenerates witty, on-brand replies for reply-worthy comments.\nHigher temperature (0.8) for personality and humor."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => {\n  let classified;\n  try {\n    const content = JSON.parse($json.message.content);\n    classified = content.replies || content.comments || content;\n    if (!Array.isArray(classified)) classified = [classified];\n  } catch(e) {\n    classified = [];\n  }\n\n  const replyWorthy = classified.filter(c => c.classification === 'reply-worthy');\n  const flagged = classified.filter(c => c.classification === 'flag-for-human');\n  const ignored = classified.filter(c => c.classification === 'ignore');\n\n  return JSON.stringify({\n    total_processed: classified.length,\n    reply_worthy: replyWorthy.length,\n    flagged: flagged.length,\n    ignored: ignored.length,\n    replies: replyWorthy,\n    flags: flagged,\n    scan_time: $('📋 Merge All Comments').item.json.scan_time\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "parse-classified",
+      "name": "📋 Parse Classifications",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1300, 500],
+      "notes": "Separates the classified comments into reply-worthy, flagged, and ignored categories."
+    },
+
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=💬 *ENGAGER REPORT*\n⏰ {{ $json.scan_time }}\n\n📊 *Stats:*\n• Processed: {{ $json.total_processed }}\n• Reply-worthy: {{ $json.reply_worthy }}\n• Flagged for you: {{ $json.flagged }}\n• Ignored: {{ $json.ignored }}\n\n{{ $json.reply_worthy > 0 ? '✅ *PENDING REPLIES:*\\n' + $json.replies.map((r, i) => (i+1) + '. [' + r.platform + '] @' + (r.author || 'user') + ': _\"' + (r.text || '').substring(0, 60) + '\"_\\n   → ' + r.reply).join('\\n\\n') : '✅ No reply-worthy comments this cycle.' }}\n\n{{ $json.flagged > 0 ? '⚠️ *FLAGGED FOR HUMAN REVIEW:*\\n' + $json.flags.map((f, i) => (i+1) + '. [' + f.platform + '] @' + (f.author || 'user') + ': _\"' + (f.text || '').substring(0, 80) + '\"_\\n   Reason: ' + f.reason).join('\\n\\n') : '' }}\n\n_Replies are NOT auto-posted. Review and post manually, or approve auto-posting once you trust the tone._",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-engagement",
+      "name": "📱 Send Engagement Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1550, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "notes": "HUMAN IN THE LOOP — Sends classified comments and suggested replies to Telegram.\nReplies are NOT auto-posted. You review the suggested replies and manually post them,\nor once you trust the AI's tone, you can enable auto-posting by adding\nHTTP Request nodes after this to POST the replies via each platform's API."
+    }
+  ],
+  "connections": {
+    "⏰ Every 4 Hours": {
+      "main": [
+        [
+          { "node": "▶️ YT – Get Comments", "type": "main", "index": 0 },
+          { "node": "📸 IG – Get Comments", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "▶️ YT – Get Comments": {
+      "main": [[{ "node": "📋 Merge All Comments", "type": "main", "index": 0 }]]
+    },
+    "📸 IG – Get Comments": {
+      "main": [[{ "node": "📋 Merge All Comments", "type": "main", "index": 0 }]]
+    },
+    "📋 Merge All Comments": {
+      "main": [[{ "node": "🧠 Classify & Generate Replies", "type": "main", "index": 0 }]]
+    },
+    "🧠 Classify & Generate Replies": {
+      "main": [[{ "node": "📋 Parse Classifications", "type": "main", "index": 0 }]]
+    },
+    "📋 Parse Classifications": {
+      "main": [[{ "node": "📱 Send Engagement Report", "type": "main", "index": 0 }]]
+    },
+    "📱 Send Engagement Report": {
+      "main": [[]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Manila"
+  },
+  "tags": [
+    {
+      "name": "Roblox Content Machine"
+    }
+  ]
+}

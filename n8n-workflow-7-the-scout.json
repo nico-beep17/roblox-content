@@ -1,0 +1,266 @@
+{
+  "name": "Roblox – The Scout (Trend Detection)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 6,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "schedule-6am",
+      "name": "⏰ 6 AM PHT Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 500],
+      "notes": "Fires at 6 AM PHT — 2 hours BEFORE the Daily Director.\nThis ensures trending data is ready when the concept generator runs at 8 AM."
+    },
+
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.reddit.com/r/roblox/hot.json?limit=25",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "User-Agent", "value": "n8n-roblox-scout/1.0" }
+          ]
+        },
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 15000
+        }
+      },
+      "id": "reddit-roblox",
+      "name": "🔥 Reddit r/roblox Hot",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300],
+      "notes": "Scrapes the top 25 hot posts from r/roblox.\nReddit's public JSON API requires no auth — just a User-Agent header.\nPulls titles, scores, comment counts, and flairs."
+    },
+
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.reddit.com/r/RobloxAvatars+bloxfruits+DressToImpress+RobloxDoors/hot.json?limit=25",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "User-Agent", "value": "n8n-roblox-scout/1.0" }
+          ]
+        },
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 15000
+        }
+      },
+      "id": "reddit-subs",
+      "name": "🔥 Reddit Game Subs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 500],
+      "notes": "Scrapes hot posts from game-specific subreddits:\nr/bloxfruits, r/DressToImpress, r/RobloxDoors, r/RobloxAvatars.\nMulti-sub query via Reddit's + syntax."
+    },
+
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/youtube/v3/search?part=snippet&q=roblox&type=video&videoDuration=short&order=viewCount&publishedAfter={{ $now.minus(2, 'days').toISO() }}&maxResults=15&key={{ $env.YT_API_KEY || '' }}",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 15000
+        }
+      },
+      "id": "yt-trending",
+      "name": "📈 YT Trending Roblox Shorts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 700],
+      "notes": "Searches YouTube for the most-viewed Roblox Shorts from the last 48 hours.\nUses the YouTube Data API v3 public search.\nSet env var YT_API_KEY to your YouTube API key (or use OAuth)."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => {\n  // Parse Reddit r/roblox\n  const rPosts = ($('🔥 Reddit r/roblox Hot').item.json?.body?.data?.children || [])\n    .map(c => c.data)\n    .filter(p => p.score > 50)\n    .map(p => ({ source: 'r/roblox', title: p.title, score: p.score, comments: p.num_comments, flair: p.link_flair_text || '', url: 'https://reddit.com' + p.permalink }));\n\n  // Parse Reddit game subs\n  const gPosts = ($('🔥 Reddit Game Subs').item.json?.body?.data?.children || [])\n    .map(c => c.data)\n    .filter(p => p.score > 30)\n    .map(p => ({ source: 'r/' + p.subreddit, title: p.title, score: p.score, comments: p.num_comments, flair: p.link_flair_text || '' }));\n\n  // Parse YouTube trending\n  const ytItems = ($('📈 YT Trending Roblox Shorts').item.json?.body?.items || [])\n    .map(v => ({ source: 'YouTube', title: v.snippet.title, channel: v.snippet.channelTitle, published: v.snippet.publishedAt }));\n\n  // Combine all signals\n  const allSignals = [...rPosts.slice(0, 10), ...gPosts.slice(0, 10), ...ytItems.slice(0, 10)];\n\n  // Extract trending keywords (simple frequency analysis)\n  const words = allSignals.map(s => s.title.toLowerCase()).join(' ')\n    .replace(/[^a-z0-9\\s]/g, '').split(/\\s+/)\n    .filter(w => w.length > 3 && !['this', 'that', 'with', 'from', 'have', 'just', 'what', 'when', 'they', 'been', 'will', 'your', 'more', 'about', 'roblox', 'game'].includes(w));\n  const freq = {};\n  words.forEach(w => freq[w] = (freq[w] || 0) + 1);\n  const trendingKeywords = Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 15).map(e => e[0]);\n\n  return JSON.stringify({\n    scan_date: $now.format('yyyy-MM-dd'),\n    total_signals: allSignals.length,\n    reddit_signals: rPosts.length + gPosts.length,\n    youtube_signals: ytItems.length,\n    trending_keywords: trendingKeywords,\n    top_reddit: rPosts.slice(0, 5),\n    top_game_subs: gPosts.slice(0, 5),\n    top_youtube: ytItems.slice(0, 5),\n    all_signals: allSignals\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "aggregate-trends",
+      "name": "📋 Aggregate Trend Signals",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [800, 500],
+      "notes": "Merges all trend sources, filters by engagement threshold,\nextracts trending keywords via frequency analysis,\nand packages everything for the AI trend analyst."
+    },
+
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a trend analyst for a Roblox short-form video creator targeting US/Canada Gen Z/Alpha. You will receive raw trend signals from Reddit and YouTube.\n\nAnalyze the data and output strictly in JSON:\n{\n  \"trend_summary\": \"2-3 sentence overview of what's trending in Roblox right now\",\n  \"hot_games\": [\"game1\", \"game2\", \"game3\"],\n  \"emerging_topics\": [\"topic1\", \"topic2\", \"topic3\"],\n  \"content_angles\": [\n    {\n      \"angle\": \"A specific video angle based on a trend\",\n      \"why\": \"Why this will work right now\",\n      \"urgency\": \"high/medium/low\"\n    }\n  ],\n  \"avoid\": [\"topic to avoid because it's oversaturated or dying\"],\n  \"trending_keywords\": [\"keyword1\", \"keyword2\", \"keyword3\"]\n}"
+            },
+            {
+              "role": "user",
+              "content": "=Today's trend scan ({{ $json.scan_date }}):\n\nTrending keywords: {{ $json.trending_keywords.join(', ') }}\n\nTop Reddit r/roblox posts:\n{{ JSON.stringify($json.top_reddit, null, 2) }}\n\nTop game-specific subreddit posts:\n{{ JSON.stringify($json.top_game_subs, null, 2) }}\n\nTop YouTube Roblox Shorts (last 48h):\n{{ JSON.stringify($json.top_youtube, null, 2) }}\n\nTotal signals analyzed: {{ $json.total_signals }}\n\nAnalyze these trends and give me actionable content angles."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.6,
+          "maxTokens": 800,
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "openai-trends",
+      "name": "🧠 AI Trend Analysis",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [1050, 500],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "GPT-4o analyzes all trend signals and outputs:\n- Hot games to focus on\n- Emerging topics to ride early\n- Specific content angles with urgency levels\n- Topics to avoid (oversaturated/dying)\nLow temperature (0.6) for analytical accuracy."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => {\n  const trends = JSON.parse($json.message.content);\n  const raw = $('📋 Aggregate Trend Signals').item.json;\n  return JSON.stringify({\n    scan_date: raw.scan_date,\n    trend_summary: trends.trend_summary,\n    hot_games: trends.hot_games,\n    emerging_topics: trends.emerging_topics,\n    content_angles: trends.content_angles,\n    avoid: trends.avoid,\n    trending_keywords: trends.trending_keywords,\n    total_signals: raw.total_signals\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "parse-trends",
+      "name": "📋 Parse Trend Report",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1300, 500],
+      "notes": "Flattens the AI trend analysis for Sheets and Telegram."
+    },
+
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Trend Log",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.scan_date }}",
+            "Hot Games": "={{ $json.hot_games.join(', ') }}",
+            "Emerging Topics": "={{ $json.emerging_topics.join(', ') }}",
+            "Trending Keywords": "={{ $json.trending_keywords.join(', ') }}",
+            "Signals": "={{ $json.total_signals }}",
+            "Summary": "={{ $json.trend_summary }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-trends",
+      "name": "📊 Log to Trend Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1550, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Logs daily trend data to a 'Trend Log' sheet tab.\nCreate tab with columns: Date | Hot Games | Emerging Topics | Trending Keywords | Signals | Summary"
+    },
+
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=🔍 *TREND SCOUT REPORT*\n📅 {{ $json.scan_date }} | {{ $json.total_signals }} signals scanned\n\n📊 *SUMMARY:*\n{{ $json.trend_summary }}\n\n🎮 *HOT GAMES:*\n{{ $json.hot_games.map(g => '• ' + g).join('\\n') }}\n\n🚀 *EMERGING TOPICS:*\n{{ $json.emerging_topics.map(t => '• ' + t).join('\\n') }}\n\n💡 *CONTENT ANGLES:*\n{{ $json.content_angles.map((a, i) => (i+1) + '. [' + a.urgency.toUpperCase() + '] ' + a.angle + '\\n   _' + a.why + '_').join('\\n') }}\n\n⛔ *AVOID:*\n{{ $json.avoid.map(a => '• ' + a).join('\\n') }}\n\n🏷️ *TRENDING KEYWORDS:*\n{{ $json.trending_keywords.join(', ') }}\n\n_This runs 2h before Daily Director so trends inform today's concept._",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-trends",
+      "name": "📱 Send Trend Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1800, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "notes": "Sends the daily trend report to Telegram at 6 AM PHT.\nIncludes hot games, content angles with urgency, and keywords to use.\nThe Daily Director (8 AM) can then read the Trend Log for context."
+    }
+  ],
+  "connections": {
+    "⏰ 6 AM PHT Daily": {
+      "main": [
+        [
+          { "node": "🔥 Reddit r/roblox Hot", "type": "main", "index": 0 },
+          { "node": "🔥 Reddit Game Subs", "type": "main", "index": 0 },
+          { "node": "📈 YT Trending Roblox Shorts", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "🔥 Reddit r/roblox Hot": {
+      "main": [[{ "node": "📋 Aggregate Trend Signals", "type": "main", "index": 0 }]]
+    },
+    "🔥 Reddit Game Subs": {
+      "main": [[{ "node": "📋 Aggregate Trend Signals", "type": "main", "index": 0 }]]
+    },
+    "📈 YT Trending Roblox Shorts": {
+      "main": [[{ "node": "📋 Aggregate Trend Signals", "type": "main", "index": 0 }]]
+    },
+    "📋 Aggregate Trend Signals": {
+      "main": [[{ "node": "🧠 AI Trend Analysis", "type": "main", "index": 0 }]]
+    },
+    "🧠 AI Trend Analysis": {
+      "main": [[{ "node": "📋 Parse Trend Report", "type": "main", "index": 0 }]]
+    },
+    "📋 Parse Trend Report": {
+      "main": [
+        [
+          { "node": "📊 Log to Trend Sheet", "type": "main", "index": 0 },
+          { "node": "📱 Send Trend Report", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "📊 Log to Trend Sheet": {
+      "main": [[]]
+    },
+    "📱 Send Trend Report": {
+      "main": [[]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Manila"
+  },
+  "tags": [
+    {
+      "name": "Roblox Content Machine"
+    }
+  ]
+}
