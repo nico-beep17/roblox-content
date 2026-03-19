@@ -1,0 +1,411 @@
+{
+  "name": "Roblox – The Analyst",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 20,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "schedule-8pm",
+      "name": "⏰ 8 PM PHT Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 500],
+      "notes": "Fires at 8:00 PM PHT daily to pull the day's performance data.\nRun at night so YouTube's 2-3 day data lag catches up on recent posts."
+    },
+
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "Scheduled"
+            }
+          ]
+        },
+        "options": {
+          "returnAllMatches": true
+        }
+      },
+      "id": "sheets-get-scheduled",
+      "name": "📊 Get Scheduled Posts",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [450, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Pulls all rows with Status = 'Scheduled' from the Content Tracker.\nThese are posts that have been published but not yet analyzed."
+    },
+
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/youtube/v3/search?part=snippet&channelId={{ $env.YT_CHANNEL_ID }}&q={{ encodeURIComponent($json['File Code Name']) }}&type=video&maxResults=1",
+        "authentication": "oAuth2",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 15000
+        }
+      },
+      "id": "yt-search-video",
+      "name": "▶️ YT – Find Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [750, 300],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_GOOGLE_OAUTH2_CREDENTIAL_ID",
+          "name": "Google / YouTube OAuth2"
+        }
+      },
+      "notes": "Searches your YouTube channel for the video by File Code Name to get its videoId.\nSet env var YT_CHANNEL_ID to your YouTube channel ID."
+    },
+
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/youtube/v3/videos?part=statistics&id={{ $json.body.items[0]?.id?.videoId || '' }}",
+        "authentication": "oAuth2",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 15000
+        }
+      },
+      "id": "yt-get-stats",
+      "name": "▶️ YT – Get Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 300],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_GOOGLE_OAUTH2_CREDENTIAL_ID",
+          "name": "Google / YouTube OAuth2"
+        }
+      },
+      "notes": "Fetches viewCount, likeCount, commentCount for the found video.\nYouTube Data API v3 → /videos?part=statistics."
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/video/list/",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"max_count\": 20 }) }}",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 15000
+        }
+      },
+      "id": "tiktok-list-videos",
+      "name": "🎵 TikTok – List Videos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [750, 500],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_TIKTOK_OAUTH2_CREDENTIAL_ID",
+          "name": "TikTok OAuth2"
+        }
+      },
+      "notes": "TikTok Content Posting API → /video/list/ returns the creator's recent videos\nwith view_count, like_count, comment_count, share_count.\nRequires scope: video.list\nReturns up to 20 most recent videos."
+    },
+
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v21.0/{{ $env.IG_USER_ID }}/media?fields=id,caption,timestamp,insights.metric(views,reach,likes,comments,shares,saved)&limit=20",
+        "authentication": "oAuth2",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 15000
+        }
+      },
+      "id": "ig-get-insights",
+      "name": "📸 IG – Get Media Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [750, 700],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_META_OAUTH2_CREDENTIAL_ID",
+          "name": "Meta / Facebook OAuth2"
+        }
+      },
+      "notes": "Instagram Graph API → /{ig_user_id}/media with inline insights.\nUses the new unified 'views' metric (post-April 2025 deprecation of 'plays').\nAlso pulls reach, likes, comments, shares, saved.\nSet env var IG_USER_ID."
+    },
+
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v21.0/{{ $env.FB_PAGE_ID }}/video_reels?fields=id,description,updated_time,video_insights{values}&limit=20",
+        "authentication": "oAuth2",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 15000
+        }
+      },
+      "id": "fb-get-insights",
+      "name": "📘 FB – Get Reel Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [750, 900],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_META_OAUTH2_CREDENTIAL_ID",
+          "name": "Meta / Facebook OAuth2"
+        }
+      },
+      "notes": "Facebook Graph API → /{page_id}/video_reels with nested video_insights.\nSet env var FB_PAGE_ID."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => {\n  const codeName = $('📊 Get Scheduled Posts').item.json['File Code Name'];\n  \n  // YouTube stats\n  const ytItems = $('▶️ YT – Get Stats').item.json?.body?.items || [];\n  const ytStats = ytItems[0]?.statistics || {};\n  \n  // TikTok stats — find matching video by title/description\n  const ttVideos = $('🎵 TikTok – List Videos').item.json?.body?.videos || [];\n  const ttMatch = ttVideos.find(v => (v.title || '').toLowerCase().includes(codeName.replace(/-/g, ' '))) || {};\n  \n  // IG stats — find matching by caption\n  const igMedia = $('📸 IG – Get Media Insights').item.json?.body?.data || [];\n  const igMatch = igMedia.find(m => (m.caption || '').toLowerCase().includes(codeName.replace(/-/g, ' '))) || {};\n  const igInsights = igMatch.insights?.data || [];\n  const igMetric = (name) => (igInsights.find(i => i.name === name)?.values?.[0]?.value || 0);\n  \n  // FB stats\n  const fbReels = $('📘 FB – Get Reel Insights').item.json?.body?.data || [];\n  const fbMatch = fbReels.find(r => (r.description || '').toLowerCase().includes(codeName.replace(/-/g, ' '))) || {};\n  const fbInsights = fbMatch.video_insights?.data || [];\n  const fbMetric = (name) => (fbInsights.find(i => i.name === name)?.values?.[0]?.value || 0);\n  \n  const yt_views = parseInt(ytStats.viewCount || 0);\n  const tt_views = parseInt(ttMatch.view_count || 0);\n  const ig_views = igMetric('views');\n  const fb_views = fbMetric('post_video_views');\n  const total_views = yt_views + tt_views + ig_views + fb_views;\n  \n  const yt_likes = parseInt(ytStats.likeCount || 0);\n  const tt_likes = parseInt(ttMatch.like_count || 0);\n  const ig_likes = igMetric('likes');\n  const total_likes = yt_likes + tt_likes + ig_likes;\n  \n  const tt_shares = parseInt(ttMatch.share_count || 0);\n  const ig_shares = igMetric('shares');\n  const total_shares = tt_shares + ig_shares;\n  \n  const yt_comments = parseInt(ytStats.commentCount || 0);\n  const tt_comments = parseInt(ttMatch.comment_count || 0);\n  const ig_comments = igMetric('comments');\n  const total_comments = yt_comments + tt_comments + ig_comments;\n  \n  const top_platform = [['YouTube', yt_views], ['TikTok', tt_views], ['Instagram', ig_views], ['Facebook', fb_views]]\n    .sort((a, b) => b[1] - a[1])[0][0];\n  \n  const engagement_rate = total_views > 0 ? (((total_likes + total_comments + total_shares) / total_views) * 100).toFixed(2) : '0.00';\n\n  return JSON.stringify({\n    file_code_name: codeName,\n    date: $('📊 Get Scheduled Posts').item.json['Date'],\n    total_views, yt_views, tt_views, ig_views, fb_views,\n    total_likes, total_comments, total_shares,\n    engagement_rate, top_platform,\n    tier: total_views >= 100000 ? '🟢 VIRAL' : total_views >= 10000 ? '🟡 DECENT' : '🔴 LOW'\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "aggregate-stats",
+      "name": "📈 Aggregate All Stats",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1300, 500],
+      "notes": "Merges stats from all 4 platforms into a unified analytics object.\nMatches videos by searching captions/titles for the File Code Name.\nCalculates total views, engagement rate, top platform, and performance tier."
+    },
+
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Analytics",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.date }}",
+            "File Code Name": "={{ $json.file_code_name }}",
+            "Total Views": "={{ $json.total_views }}",
+            "YT Views": "={{ $json.yt_views }}",
+            "TT Views": "={{ $json.tt_views }}",
+            "IG Views": "={{ $json.ig_views }}",
+            "FB Views": "={{ $json.fb_views }}",
+            "Likes": "={{ $json.total_likes }}",
+            "Comments": "={{ $json.total_comments }}",
+            "Shares": "={{ $json.total_shares }}",
+            "Engagement Rate": "={{ $json.engagement_rate }}%",
+            "Top Platform": "={{ $json.top_platform }}",
+            "Tier": "={{ $json.tier }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-log-analytics",
+      "name": "📊 Log to Analytics Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1550, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Appends analytics data to the 'Analytics' sheet tab.\nCreate a tab called 'Analytics' with columns:\nDate | File Code Name | Total Views | YT Views | TT Views | IG Views | FB Views | Likes | Comments | Shares | Engagement Rate | Top Platform | Tier"
+    },
+
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "File Code Name",
+              "lookupValue": "={{ $json.file_code_name }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "Published"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-mark-published",
+      "name": "📊 Status → Published",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1800, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Updates the main tracker from 'Scheduled' to 'Published' so the Analyst\ndoesn't re-pull this row tomorrow."
+    },
+
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a data-driven short-form video analyst. You will receive performance data for recent Roblox videos posted across TikTok, YouTube Shorts, Instagram Reels, and Facebook Reels.\n\nAnalyze the data and output a concise 3-sentence insight:\n1. Which video performed best and WHY you think it worked (reference the hook, pacing, or topic).\n2. Which platform drove the most views and what that tells us about the audience.\n3. One specific, actionable recommendation for tomorrow's content based on the patterns.\n\nBe specific and data-driven. No fluff."
+            },
+            {
+              "role": "user",
+              "content": "=Here is today's performance data:\n\n{{ JSON.stringify($json, null, 2) }}\n\nAnalyze and give your 3-sentence insight."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.5,
+          "maxTokens": 300
+        }
+      },
+      "id": "openai-insight",
+      "name": "🧠 AI Performance Insight",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [2050, 500],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "Analyzes the aggregated stats and generates a 3-sentence actionable insight.\nLow temperature (0.5) for analytical precision."
+    },
+
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=📊 *DAILY PERFORMANCE DIGEST*\n📅 {{ $('📈 Aggregate All Stats').item.json.date }}\n\n🏷️ *Video:* `{{ $('📈 Aggregate All Stats').item.json.file_code_name }}`\n{{ $('📈 Aggregate All Stats').item.json.tier }}\n\n👁️ *Total Views:* {{ $('📈 Aggregate All Stats').item.json.total_views.toLocaleString() }}\n   ▶️ YouTube: {{ $('📈 Aggregate All Stats').item.json.yt_views.toLocaleString() }}\n   🎵 TikTok: {{ $('📈 Aggregate All Stats').item.json.tt_views.toLocaleString() }}\n   📸 Instagram: {{ $('📈 Aggregate All Stats').item.json.ig_views.toLocaleString() }}\n   📘 Facebook: {{ $('📈 Aggregate All Stats').item.json.fb_views.toLocaleString() }}\n\n❤️ Likes: {{ $('📈 Aggregate All Stats').item.json.total_likes.toLocaleString() }}\n💬 Comments: {{ $('📈 Aggregate All Stats').item.json.total_comments.toLocaleString() }}\n🔄 Shares: {{ $('📈 Aggregate All Stats').item.json.total_shares.toLocaleString() }}\n📈 Engagement: {{ $('📈 Aggregate All Stats').item.json.engagement_rate }}%\n🏆 Top Platform: {{ $('📈 Aggregate All Stats').item.json.top_platform }}\n\n💡 *AI INSIGHT:*\n{{ $json.message.content }}\n\n📊 Full data logged to Analytics sheet.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-digest",
+      "name": "📱 Send Performance Digest",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2300, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "notes": "Sends the daily performance digest with per-platform breakdown,\nengagement metrics, performance tier, and AI-generated insight."
+    }
+  ],
+  "connections": {
+    "⏰ 8 PM PHT Daily": {
+      "main": [[{ "node": "📊 Get Scheduled Posts", "type": "main", "index": 0 }]]
+    },
+    "📊 Get Scheduled Posts": {
+      "main": [
+        [
+          { "node": "▶️ YT – Find Video", "type": "main", "index": 0 },
+          { "node": "🎵 TikTok – List Videos", "type": "main", "index": 0 },
+          { "node": "📸 IG – Get Media Insights", "type": "main", "index": 0 },
+          { "node": "📘 FB – Get Reel Insights", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "▶️ YT – Find Video": {
+      "main": [[{ "node": "▶️ YT – Get Stats", "type": "main", "index": 0 }]]
+    },
+    "▶️ YT – Get Stats": {
+      "main": [[{ "node": "📈 Aggregate All Stats", "type": "main", "index": 0 }]]
+    },
+    "🎵 TikTok – List Videos": {
+      "main": [[{ "node": "📈 Aggregate All Stats", "type": "main", "index": 0 }]]
+    },
+    "📸 IG – Get Media Insights": {
+      "main": [[{ "node": "📈 Aggregate All Stats", "type": "main", "index": 0 }]]
+    },
+    "📘 FB – Get Reel Insights": {
+      "main": [[{ "node": "📈 Aggregate All Stats", "type": "main", "index": 0 }]]
+    },
+    "📈 Aggregate All Stats": {
+      "main": [[{ "node": "📊 Log to Analytics Sheet", "type": "main", "index": 0 }]]
+    },
+    "📊 Log to Analytics Sheet": {
+      "main": [[{ "node": "📊 Status → Published", "type": "main", "index": 0 }]]
+    },
+    "📊 Status → Published": {
+      "main": [[{ "node": "🧠 AI Performance Insight", "type": "main", "index": 0 }]]
+    },
+    "🧠 AI Performance Insight": {
+      "main": [[{ "node": "📱 Send Performance Digest", "type": "main", "index": 0 }]]
+    },
+    "📱 Send Performance Digest": {
+      "main": [[]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Manila"
+  },
+  "tags": [
+    {
+      "name": "Roblox Content Machine"
+    }
+  ]
+}

@@ -23,16 +23,18 @@
 ## Phase 2: Analytics & Feedback Loop 📊 *NEXT*
 > *Measure what works, kill what doesn't, double down on winners.*
 
-### 2.1 — Performance Tracker Workflow
-Build a **Workflow 4: "The Analyst"** that runs daily at 8 PM PHT:
-- [ ] Pull last 24h stats from each platform API:
-  - YouTube Analytics API → views, AVD, CTR
-  - TikTok Research API → views, likes, shares, comments
-  - Instagram Insights API → reach, plays, engagement
-  - Facebook Insights API → reach, video views
-- [ ] Write stats back to a new **"Analytics"** tab in the Content Tracker
-- [ ] OpenAI node: analyze top vs. bottom performers → generate a 3-sentence "What Worked" insight
-- [ ] Telegram: send daily performance digest with top video + AI insight
+### 2.1 — Performance Tracker Workflow ✅
+Built **Workflow 4: "The Analyst"** (`n8n-workflow-4-the-analyst.json`) — runs daily at 8 PM PHT:
+- [x] Pull stats from each platform API (fan-out parallel):
+  - YouTube Data API → search by title + /videos?part=statistics
+  - TikTok Content API → /video/list/ (views, likes, shares, comments)
+  - Instagram Graph API → /{ig_user_id}/media?insights (unified views metric)
+  - Facebook Graph API → /{page_id}/video_reels?video_insights
+- [x] Aggregate stats with performance tiers (🟢 VIRAL ≥100K / 🟡 DECENT ≥10K / 🔴 LOW)
+- [x] Write stats to a new **"Analytics"** tab in the Content Tracker
+- [x] Update main tracker Status: Scheduled → Published
+- [x] OpenAI node: generate 3-sentence actionable insight
+- [x] Telegram: send daily performance digest with per-platform breakdown + AI insight
 
 ### 2.2 — Content Tracker Dashboard
 - [ ] Add columns to the Tracker: `Views (24h)` | `Views (7d)` | `AVD%` | `Engagement Rate` | `Top Platform`
