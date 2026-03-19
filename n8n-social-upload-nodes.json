@@ -1,0 +1,287 @@
+{
+  "meta": {
+    "instanceId": "YOUR_INSTANCE_ID"
+  },
+  "nodes": [
+    {
+      "id": "tiktok-video-upload",
+      "name": "TikTok – Init Video Upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 300],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_TIKTOK_OAUTH2_CREDENTIAL_ID",
+          "name": "TikTok OAuth2"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/video/init/",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"post_info\": {\n    \"title\": $json.caption || \"My TikTok Video\",\n    \"description\": $json.caption || \"\",\n    \"privacy_level\": \"SELF_ONLY\",\n    \"disable_duet\": false,\n    \"disable_comment\": false,\n    \"disable_stitch\": false,\n    \"video_cover_timestamp_ms\": 0\n  },\n  \"source_info\": {\n    \"source\": \"PULL_FROM_URL\",\n    \"video_url\": $json.video_url\n  },\n  \"post_mode\": \"DIRECT_POST\",\n  \"schedule_time\": $json.schedule_epoch || Math.floor(Date.now() / 1000) + 86400\n}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "notes": "TikTok Content Posting API – Direct Publish with PULL_FROM_URL.\n\n⚠️  IMPORTANT SETUP:\n1. Create an OAuth2 credential in n8n with:\n   • Client ID / Secret from TikTok Developer Portal\n   • Authorization URL: https://www.tiktok.com/v2/auth/authorize/\n   • Access Token URL: https://open.tiktokapis.com/v2/oauth/token/\n   • Scope: video.publish\n2. TikTok does NOT natively support schedule_time via this endpoint.\n   Use n8n's built-in Wait / Cron node to delay execution.\n3. Replace $json.video_url with the public URL of your .mp4 (9:16 vertical, ≤4 GB, ≤10 min).\n4. Replace $json.caption with your desired caption text.\n5. privacy_level options: SELF_ONLY | MUTUAL_FOLLOW_FRIENDS | FOLLOWER_OF_CREATOR | PUBLIC_TO_EVERYONE"
+    },
+
+    {
+      "id": "ig-reels-step1-create-container",
+      "name": "IG Reels – Step 1: Create Media Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 600],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_META_OAUTH2_CREDENTIAL_ID",
+          "name": "Meta / Facebook OAuth2"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.ig_user_id }}/media",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"media_type\": \"REELS\",\n  \"video_url\": $json.video_url,\n  \"caption\": (Array.isArray($json.captions) ? $json.captions.join(' ') : $json.caption) + '\\n\\n' + ($json.hashtags || ''),\n  \"share_to_feed\": true,\n  \"scheduled_publish_time\": $json.schedule_epoch || Math.floor(Date.now() / 1000) + 86400\n}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "notes": "Meta Graph API – IG Reels Container Creation (Step 1 of 2).\n\n⚠️  IMPORTANT SETUP:\n1. Create an OAuth2 credential in n8n with:\n   • Client ID / Secret from Meta Developer Portal\n   • Authorization URL: https://www.facebook.com/v21.0/dialog/oauth\n   • Access Token URL: https://graph.facebook.com/v21.0/oauth/access_token\n   • Scope: instagram_basic,instagram_content_publish,pages_read_engagement\n2. $json.ig_user_id = your Instagram Business/Creator Account ID (numeric).\n3. $json.video_url = public HTTPS URL to a vertical .mp4 (9:16, ≤1 GB).\n4. $json.captions = array of caption lines, e.g. [\"Line 1\", \"Line 2\"].\n   Falls back to $json.caption (single string) if array is absent.\n5. $json.schedule_epoch = Unix epoch timestamp (10+ min in future, ≤75 days).\n6. scheduled_publish_time only works when the IG account is a Business account."
+    },
+
+    {
+      "id": "ig-reels-step2-publish",
+      "name": "IG Reels – Step 2: Publish Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 600],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_META_OAUTH2_CREDENTIAL_ID",
+          "name": "Meta / Facebook OAuth2"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.ig_user_id }}/media_publish",
+        "authentication": "oAuth2",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"creation_id\": $json.body.id\n}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "notes": "Meta Graph API – IG Reels Publish (Step 2 of 2).\n\nThis node publishes the container created in Step 1.\n• $json.body.id references the container ID from the previous node.\n• If you used scheduled_publish_time in Step 1, Meta will auto-publish\n  at the scheduled time—you still need to call this publish endpoint\n  to finalize the container."
+    },
+
+    {
+      "id": "yt-shorts-step1-init-resumable",
+      "name": "YT Shorts – Step 1: Init Resumable Upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 900],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_GOOGLE_OAUTH2_CREDENTIAL_ID",
+          "name": "Google / YouTube OAuth2"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            },
+            {
+              "name": "X-Upload-Content-Type",
+              "value": "video/mp4"
+            },
+            {
+              "name": "X-Upload-Content-Length",
+              "value": "={{ $json.video_file_size_bytes }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"snippet\": {\n    \"title\": ($json.yt_title || \"My Short\") + \" #Shorts\",\n    \"description\": (Array.isArray($json.captions) ? $json.captions.join('\\n') : ($json.caption || '')) + '\\n\\n' + ($json.hashtags || '#Shorts'),\n    \"tags\": $json.tags || [\"Roblox\", \"Shorts\", \"Gaming\"],\n    \"categoryId\": \"20\"\n  },\n  \"status\": {\n    \"privacyStatus\": \"private\",\n    \"selfDeclaredMadeForKids\": false,\n    \"publishAt\": $json.schedule_iso || new Date(($json.schedule_epoch || Math.floor(Date.now() / 1000) + 86400) * 1000).toISOString(),\n    \"containsSyntheticMedia\": true\n  }\n}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "autodetect"
+            }
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": false
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "notes": "YouTube Data API v3 – Resumable Upload Init (Step 1 of 2).\n\n⚠️  IMPORTANT SETUP:\n1. Create an OAuth2 credential in n8n with:\n   • Client ID / Secret from Google Cloud Console\n   • Authorization URL: https://accounts.google.com/o/oauth2/v2/auth\n   • Access Token URL: https://oauth2.googleapis.com/token\n   • Scope: https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube\n2. Enable \"YouTube Data API v3\" in your Google Cloud project.\n3. This node returns HTTP 200 with a 'Location' header containing\n   the resumable upload URI. Pass that URI to Step 2.\n4. SCHEDULING: YouTube uses 'publishAt' (ISO 8601) + privacyStatus='private'.\n   The node converts your epoch timestamp to ISO automatically.\n   $json.schedule_epoch = Unix epoch (seconds).\n   $json.schedule_iso  = ISO 8601 string (takes priority if provided).\n5. categoryId '20' = Gaming. Change as needed:\n   https://developers.google.com/youtube/v3/docs/videoCategories/list\n6. containsSyntheticMedia = true because content is AI-generated.\n   Required since Oct 2024 update.\n7. #Shorts in title OR description signals YouTube to classify as a Short.\n8. Video must be ≤60s and 9:16 vertical for guaranteed Shorts treatment.\n9. Quota cost: ~1600 units per upload (dropping to ~100 after Dec 2025).\n   Default daily quota: 10,000 units."
+    },
+
+    {
+      "id": "yt-shorts-step2-upload-binary",
+      "name": "YT Shorts – Step 2: Upload Video Binary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 900],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_GOOGLE_OAUTH2_CREDENTIAL_ID",
+          "name": "Google / YouTube OAuth2"
+        }
+      },
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.headers.location }}",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "video/mp4"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 300000
+        }
+      },
+      "notes": "YouTube Data API v3 – Binary Upload (Step 2 of 2).\n\nThis node sends the actual .mp4 file bytes to the resumable upload URI\nreturned by Step 1 (in the 'Location' response header).\n\n• $json.headers.location = the resumable upload URI from Step 1.\n• The binary field 'data' must contain your .mp4 file.\n  In your upstream flow, use a 'Read Binary File' node or\n  'Google Drive Download' node to load the video into the\n  'data' binary property before this node executes.\n• On success, YouTube returns the full video resource JSON\n  including the videoId. The video will auto-publish at the\n  'publishAt' time you set in Step 1.\n• Timeout is set to 5 minutes to accommodate large uploads."
+    },
+
+    {
+      "id": "fb-reels-publish",
+      "name": "FB Reels – Publish Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 1200],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_META_OAUTH2_CREDENTIAL_ID",
+          "name": "Meta / Facebook OAuth2"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.fb_page_id }}/video_reels",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"upload_phase\": \"finish\",\n  \"video_state\": \"SCHEDULED\",\n  \"video_url\": $json.video_url,\n  \"description\": (Array.isArray($json.captions) ? $json.captions.join(' ') : $json.caption) + '\\n\\n' + ($json.hashtags || ''),\n  \"scheduled_publish_time\": $json.schedule_epoch || Math.floor(Date.now() / 1000) + 86400\n}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "timeout": 60000
+        }
+      },
+      "notes": "Meta Graph API – Facebook Reels Publish.\n\n⚠️  IMPORTANT SETUP:\n1. Uses the SAME Meta OAuth2 credential as IG Reels.\n   Additional scope needed: pages_manage_posts,pages_read_engagement\n2. $json.fb_page_id = your Facebook Page ID (numeric).\n   FB Reels are published to Pages, not personal profiles.\n3. $json.video_url = public HTTPS URL to a vertical .mp4 (9:16).\n4. video_state = 'SCHEDULED' enables scheduled publishing.\n   Omit or set to 'PUBLISHED' for immediate posting.\n5. $json.schedule_epoch = Unix epoch timestamp for future publish.\n6. $json.captions = array of caption lines, joined with spaces.\n   Falls back to $json.caption (single string)."
+    }
+  ],
+  "connections": {
+    "TikTok – Init Video Upload": {
+      "main": [[]]
+    },
+    "IG Reels – Step 1: Create Media Container": {
+      "main": [
+        [
+          {
+            "node": "IG Reels – Step 2: Publish Container",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Reels – Step 2: Publish Container": {
+      "main": [[]]
+    },
+    "YT Shorts – Step 1: Init Resumable Upload": {
+      "main": [
+        [
+          {
+            "node": "YT Shorts – Step 2: Upload Video Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YT Shorts – Step 2: Upload Video Binary": {
+      "main": [[]]
+    },
+    "FB Reels – Publish Video": {
+      "main": [[]]
+    }
+  }
+}

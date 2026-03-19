@@ -1,0 +1,15 @@
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+
+# Secrets – never commit real credentials
+*.secret
+*.key
+
+# n8n exports with real credential IDs (if you accidentally export with secrets)
+*-with-creds.json

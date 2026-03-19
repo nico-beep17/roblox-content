@@ -1,0 +1,549 @@
+{
+  "name": "Roblox – The Publisher",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "YOUR_READY_TO_POST_FOLDER_ID",
+          "mode": "id"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "gdrive-trigger",
+      "name": "📂 Watch Ready_To_Post",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [200, 500],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YOUR_GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "notes": "Watches your Ready_To_Post folder for new .mp4 files.\nReplace YOUR_READY_TO_POST_FOLDER_ID with the folder ID from the Google Drive URL.\nTo find it: open the folder in Drive → copy the last part of the URL."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({\n  file_id: $json.id,\n  file_name: $json.name,\n  file_code_name: $json.name.replace(/\\.mp4$/i, ''),\n  mime_type: $json.mimeType,\n  web_content_link: $json.webContentLink || '',\n  web_view_link: $json.webViewLink || ''\n}) }}",
+        "options": {}
+      },
+      "id": "extract-code-name",
+      "name": "✂️ Extract File Code Name",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [450, 500],
+      "notes": "Strips the .mp4 extension to extract the File Code Name.\nAlso preserves the Google Drive file ID for later download and move operations."
+    },
+
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "File Code Name",
+              "lookupValue": "={{ $json.file_code_name }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sheets-lookup",
+      "name": "🔍 Lookup in Tracker",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [700, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Looks up the File Code Name in your Roblox Content Tracker spreadsheet\nto recall the title concept, hook, script, and other metadata.\nReplace YOUR_GOOGLE_SHEET_ID with your actual spreadsheet ID."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({\n  file_id: $('✂️ Extract File Code Name').item.json.file_id,\n  file_name: $('✂️ Extract File Code Name').item.json.file_name,\n  file_code_name: $('✂️ Extract File Code Name').item.json.file_code_name,\n  web_content_link: $('✂️ Extract File Code Name').item.json.web_content_link,\n  title_concept: $json['Title Concept'] || '',\n  hook: $json['Hook'] || '',\n  script: $json['Script'] || '',\n  row_number: $json.row_number || ''\n}) }}",
+        "options": {}
+      },
+      "id": "merge-context",
+      "name": "🔗 Merge File + Sheet Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [950, 500],
+      "notes": "Combines the Google Drive file metadata with the spreadsheet context\nso the OpenAI node has full context for metadata generation."
+    },
+
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an elite social media SEO and copywriting AI for Roblox gaming content targeting the US and Canada Gen Z / Gen Alpha audience. You will be given context about a short-form vertical video. Generate perfectly optimized metadata for cross-platform publishing.\n\nOutput strictly in this exact JSON format and NOTHING else:\n{\n  \"yt_title\": \"A clickbait YouTube Shorts title, max 70 chars, include emoji, do NOT include #Shorts\",\n  \"yt_description\": \"SEO-rich YouTube description, 2-3 sentences, include relevant keywords naturally\",\n  \"yt_tags\": [\"tag1\", \"tag2\", \"tag3\", \"tag4\", \"tag5\", \"Roblox\", \"Shorts\"],\n  \"tiktok_caption\": \"Engaging TikTok caption with Gen-Z slang, max 150 chars, 3-4 hashtags inline\",\n  \"ig_caption\": \"Instagram Reels caption, slightly longer, with line breaks and 5-7 hashtags at the end\",\n  \"fb_caption\": \"Facebook Reels caption, conversational tone, 2-3 hashtags\",\n  \"hashtags\": \"#Roblox #RobloxShorts #Gaming + 4-5 trend-specific US hashtags\"\n}"
+            },
+            {
+              "role": "user",
+              "content": "=Video File: {{ $json.file_code_name }}\nTitle Concept: {{ $json.title_concept }}\nHook: {{ $json.hook }}\nScript: {{ $json.script }}\n\nGenerate all metadata now."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000,
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "openai-metadata",
+      "name": "🧠 Generate SEO Metadata",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [1200, 500],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "Generates platform-specific captions, titles, descriptions, tags, and hashtags.\nLower temperature (0.7) for more consistent SEO quality."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => {\n  const meta = JSON.parse($json.message.content);\n  const prev = $('🔗 Merge File + Sheet Data').item.json;\n\n  // Calculate next 3:00 PM EDT (UTC-4) = 19:00 UTC\n  // If it's already past 19:00 UTC today, schedule for tomorrow\n  const now = new Date();\n  let target = new Date(now);\n  target.setUTCHours(19, 0, 0, 0); // 3 PM EDT = 19:00 UTC\n  if (target <= now) {\n    target.setUTCDate(target.getUTCDate() + 1);\n  }\n  const schedule_epoch = Math.floor(target.getTime() / 1000);\n  const schedule_iso = target.toISOString();\n\n  return JSON.stringify({\n    file_id: prev.file_id,\n    file_name: prev.file_name,\n    file_code_name: prev.file_code_name,\n    video_url: prev.web_content_link,\n    row_number: prev.row_number,\n    schedule_epoch: schedule_epoch,\n    schedule_iso: schedule_iso,\n    yt_title: meta.yt_title,\n    yt_description: meta.yt_description,\n    yt_tags: meta.yt_tags,\n    tiktok_caption: meta.tiktok_caption,\n    ig_caption: meta.ig_caption,\n    fb_caption: meta.fb_caption,\n    hashtags: meta.hashtags,\n    caption: meta.tiktok_caption,\n    captions: [meta.ig_caption]\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "schedule-calc",
+      "name": "🕐 Calculate 3 PM EDT Epoch",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1450, 500],
+      "notes": "Calculates the next 3:00 PM EDT (19:00 UTC) as both Unix epoch and ISO 8601.\nIf 3 PM EDT has already passed today, it schedules for tomorrow.\nDuring US Daylight Saving Time (EDT = UTC-4), 3 PM = 19:00 UTC.\nDuring Eastern Standard Time (EST = UTC-5), 3 PM = 20:00 UTC.\n→ Adjust target.setUTCHours(20, ...) during EST months (Nov–Mar) if needed,\n  or use a more robust timezone library."
+    },
+
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.file_id }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "fileName": "={{ $json.file_name }}"
+        }
+      },
+      "id": "gdrive-download",
+      "name": "⬇️ Download Video",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1700, 500],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YOUR_GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "notes": "Downloads the .mp4 from Google Drive into binary property 'data'.\nThis is needed for YouTube Shorts (which requires binary upload)\nand as a fallback if video_url isn't publicly accessible."
+    },
+
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": "={{ (() => { const wait = ($('🕐 Calculate 3 PM EDT Epoch').item.json.schedule_epoch * 1000 - Date.now()) / 1000; return Math.max(wait, 0); })() }}",
+        "unit": "seconds"
+      },
+      "id": "tiktok-wait",
+      "name": "⏳ Wait Until 3 PM EDT",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2000, 200],
+      "notes": "TikTok has NO native scheduling API.\nThis Wait node pauses execution until the target 3 PM EDT timestamp,\nthen releases to the TikTok Publish node so it posts at the right time.\nIf the target time has already passed, it fires immediately (wait = 0)."
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/video/init/",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"post_info\": {\n    \"title\": $json.tiktok_caption || $json.caption,\n    \"description\": $json.tiktok_caption || $json.caption,\n    \"privacy_level\": \"PUBLIC_TO_EVERYONE\",\n    \"disable_duet\": false,\n    \"disable_comment\": false,\n    \"disable_stitch\": false\n  },\n  \"source_info\": {\n    \"source\": \"PULL_FROM_URL\",\n    \"video_url\": $json.video_url\n  },\n  \"post_mode\": \"DIRECT_POST\"\n}) }}",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 30000
+        }
+      },
+      "id": "tiktok-publish",
+      "name": "🎵 TikTok Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2300, 200],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_TIKTOK_OAUTH2_CREDENTIAL_ID",
+          "name": "TikTok OAuth2"
+        }
+      },
+      "notes": "TikTok Content Posting API – PULL_FROM_URL.\nprivacy_level set to PUBLIC_TO_EVERYONE for live posting.\nThe Wait node before this ensures it fires at 3 PM EDT."
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.ig_user_id || $env.IG_USER_ID }}/media",
+        "authentication": "oAuth2",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"media_type\": \"REELS\",\n  \"video_url\": $json.video_url,\n  \"caption\": $json.ig_caption + '\\n\\n' + $json.hashtags,\n  \"share_to_feed\": true,\n  \"scheduled_publish_time\": $json.schedule_epoch\n}) }}",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 60000
+        }
+      },
+      "id": "ig-reels-container",
+      "name": "📸 IG Reels – Create Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 500],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_META_OAUTH2_CREDENTIAL_ID",
+          "name": "Meta / Facebook OAuth2"
+        }
+      },
+      "notes": "Set $json.ig_user_id or the environment variable IG_USER_ID\nto your Instagram Business Account numeric ID."
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $('⬇️ Download Video').item.json.ig_user_id || $env.IG_USER_ID }}/media_publish",
+        "authentication": "oAuth2",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"creation_id\": $json.body.id }) }}",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 60000
+        }
+      },
+      "id": "ig-reels-publish",
+      "name": "📸 IG Reels – Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2300, 500],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_META_OAUTH2_CREDENTIAL_ID",
+          "name": "Meta / Facebook OAuth2"
+        }
+      }
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json; charset=UTF-8" },
+            { "name": "X-Upload-Content-Type", "value": "video/mp4" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"snippet\": {\n    \"title\": $json.yt_title + ' #Shorts',\n    \"description\": $json.yt_description + '\\n\\n' + $json.hashtags,\n    \"tags\": $json.yt_tags || ['Roblox', 'Shorts', 'Gaming'],\n    \"categoryId\": \"20\"\n  },\n  \"status\": {\n    \"privacyStatus\": \"private\",\n    \"selfDeclaredMadeForKids\": false,\n    \"publishAt\": $json.schedule_iso,\n    \"containsSyntheticMedia\": true\n  }\n}) }}",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "redirect": { "redirect": { "followRedirects": false } },
+          "timeout": 30000
+        }
+      },
+      "id": "yt-init-upload",
+      "name": "▶️ YT Shorts – Init Upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 700],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_GOOGLE_OAUTH2_CREDENTIAL_ID",
+          "name": "Google / YouTube OAuth2"
+        }
+      },
+      "notes": "YouTube Data API v3 resumable upload init.\ncategoryId 20 = Gaming. containsSyntheticMedia = true (AI content)."
+    },
+
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.headers.location }}",
+        "authentication": "oAuth2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "video/mp4" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 300000
+        }
+      },
+      "id": "yt-upload-binary",
+      "name": "▶️ YT Shorts – Upload Binary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2300, 700],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_GOOGLE_OAUTH2_CREDENTIAL_ID",
+          "name": "Google / YouTube OAuth2"
+        }
+      },
+      "notes": "Sends the actual .mp4 binary to the resumable upload URI.\nBinary property 'data' was loaded by the Download Video node.\n5 minute timeout to handle large files."
+    },
+
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v21.0/{{ $json.fb_page_id || $env.FB_PAGE_ID }}/video_reels",
+        "authentication": "oAuth2",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"upload_phase\": \"finish\",\n  \"video_state\": \"SCHEDULED\",\n  \"video_url\": $json.video_url,\n  \"description\": $json.fb_caption + '\\n\\n' + $json.hashtags,\n  \"scheduled_publish_time\": $json.schedule_epoch\n}) }}",
+        "options": {
+          "response": { "response": { "fullResponse": true } },
+          "timeout": 60000
+        }
+      },
+      "id": "fb-reels-publish",
+      "name": "📘 FB Reels – Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 900],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "YOUR_META_OAUTH2_CREDENTIAL_ID",
+          "name": "Meta / Facebook OAuth2"
+        }
+      },
+      "notes": "Facebook Reels via Graph API.\nSet $json.fb_page_id or env var FB_PAGE_ID to your Facebook Page ID.\nvideo_state SCHEDULED uses the epoch timestamp for delayed publishing."
+    },
+
+    {
+      "parameters": {
+        "operation": "move",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $('✂️ Extract File Code Name').item.json.file_id }}",
+          "mode": "id"
+        },
+        "driveId": {
+          "__rl": true,
+          "value": "MY_DRIVE",
+          "mode": "id"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "YOUR_ARCHIVE_FOLDER_ID",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "gdrive-move",
+      "name": "🗃️ Move to Archive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [2600, 500],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YOUR_GOOGLE_DRIVE_CREDENTIAL_ID",
+          "name": "Google Drive OAuth2"
+        }
+      },
+      "notes": "Moves the .mp4 from Ready_To_Post → Archive to prevent duplicate triggers.\nReplace YOUR_ARCHIVE_FOLDER_ID with the Archive folder ID from Google Drive."
+    },
+
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "list"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "File Code Name",
+              "lookupValue": "={{ $('✂️ Extract File Code Name').item.json.file_code_name }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "Scheduled"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-update",
+      "name": "📊 Status → Scheduled",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2850, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Updates the row's Status column from 'Pending' to 'Scheduled'."
+    },
+
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=✅ *SCHEDULED SUCCESSFULLY*\n\n📁 *File:* `{{ $('✂️ Extract File Code Name').item.json.file_code_name }}`\n🕐 *Publish Time:* 3:00 PM EDT ({{ $('🕐 Calculate 3 PM EDT Epoch').item.json.schedule_iso }})\n\n🎵 TikTok: ✅ Submitted\n📸 IG Reels: ✅ Scheduled\n▶️ YT Shorts: ✅ Scheduled\n📘 FB Reels: ✅ Scheduled\n\n📂 Video moved to Archive.\n📊 Tracker updated → *Scheduled*\n\n🛌 Go to sleep, the system has it from here!",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-success",
+      "name": "📱 Send Success Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3100, 500],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "notes": "Sends you a Telegram confirmation that the video has been\nSEO-optimized, scheduled across all 4 platforms, archived, and tracked."
+    }
+  ],
+  "connections": {
+    "📂 Watch Ready_To_Post": {
+      "main": [[{ "node": "✂️ Extract File Code Name", "type": "main", "index": 0 }]]
+    },
+    "✂️ Extract File Code Name": {
+      "main": [[{ "node": "🔍 Lookup in Tracker", "type": "main", "index": 0 }]]
+    },
+    "🔍 Lookup in Tracker": {
+      "main": [[{ "node": "🔗 Merge File + Sheet Data", "type": "main", "index": 0 }]]
+    },
+    "🔗 Merge File + Sheet Data": {
+      "main": [[{ "node": "🧠 Generate SEO Metadata", "type": "main", "index": 0 }]]
+    },
+    "🧠 Generate SEO Metadata": {
+      "main": [[{ "node": "🕐 Calculate 3 PM EDT Epoch", "type": "main", "index": 0 }]]
+    },
+    "🕐 Calculate 3 PM EDT Epoch": {
+      "main": [[{ "node": "⬇️ Download Video", "type": "main", "index": 0 }]]
+    },
+    "⬇️ Download Video": {
+      "main": [
+        [
+          { "node": "⏳ Wait Until 3 PM EDT", "type": "main", "index": 0 },
+          { "node": "📸 IG Reels – Create Container", "type": "main", "index": 0 },
+          { "node": "▶️ YT Shorts – Init Upload", "type": "main", "index": 0 },
+          { "node": "📘 FB Reels – Publish", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "⏳ Wait Until 3 PM EDT": {
+      "main": [[{ "node": "🎵 TikTok Publish", "type": "main", "index": 0 }]]
+    },
+    "🎵 TikTok Publish": {
+      "main": [[{ "node": "🗃️ Move to Archive", "type": "main", "index": 0 }]]
+    },
+    "📸 IG Reels – Create Container": {
+      "main": [[{ "node": "📸 IG Reels – Publish", "type": "main", "index": 0 }]]
+    },
+    "📸 IG Reels – Publish": {
+      "main": [[]]
+    },
+    "▶️ YT Shorts – Init Upload": {
+      "main": [[{ "node": "▶️ YT Shorts – Upload Binary", "type": "main", "index": 0 }]]
+    },
+    "▶️ YT Shorts – Upload Binary": {
+      "main": [[]]
+    },
+    "📘 FB Reels – Publish": {
+      "main": [[]]
+    },
+    "🗃️ Move to Archive": {
+      "main": [[{ "node": "📊 Status → Scheduled", "type": "main", "index": 0 }]]
+    },
+    "📊 Status → Scheduled": {
+      "main": [[{ "node": "📱 Send Success Alert", "type": "main", "index": 0 }]]
+    },
+    "📱 Send Success Alert": {
+      "main": [[]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Manila"
+  },
+  "tags": [
+    {
+      "name": "Roblox Content Machine"
+    }
+  ]
+}

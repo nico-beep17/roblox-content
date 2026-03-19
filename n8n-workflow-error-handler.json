@@ -1,0 +1,117 @@
+{
+  "name": "Roblox – Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "error-trigger",
+      "name": "⚠️ Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "notes": "This node fires automatically whenever ANY node in a linked workflow fails.\nTo link it: open The Daily Director or The Publisher → Settings → Error Workflow → select this workflow."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ JSON.stringify({\n  workflow_name: $json.execution?.workflowData?.name || 'Unknown Workflow',\n  workflow_id: $json.execution?.workflowId || '',\n  execution_id: $json.execution?.id || '',\n  error_message: $json.execution?.error?.message || 'No error message',\n  error_node: $json.execution?.error?.node?.name || 'Unknown Node',\n  error_timestamp: new Date().toISOString(),\n  execution_url: $json.execution?.url || ''\n}) }}",
+        "options": {}
+      },
+      "id": "parse-error",
+      "name": "📋 Parse Error Details",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [450, 300],
+      "notes": "Extracts the workflow name, failed node name, error message, and execution URL from the error trigger payload."
+    },
+
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=🚨 *WORKFLOW ERROR*\n\n⚙️ *Workflow:* {{ $json.workflow_name }}\n❌ *Failed Node:* {{ $json.error_node }}\n💬 *Error:* {{ $json.error_message }}\n🕐 *Time:* {{ $json.error_timestamp }}\n\n🔗 [View Execution]({{ $json.execution_url }})\n\n💡 *Quick Fixes:*\n• If it's an OAuth token error → re-authenticate the credential in n8n\n• If it's a rate limit → wait 15 min and retry from n8n execution log\n• If it's a video URL error → make sure the Google Drive file is shared",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-error",
+      "name": "📱 Send Error Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [700, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "notes": "Sends you an immediate Telegram alert with the error details and a direct link to the failed execution so you can debug or retry."
+    },
+
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Error Log",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Timestamp": "={{ $json.error_timestamp }}",
+            "Workflow": "={{ $json.workflow_name }}",
+            "Failed Node": "={{ $json.error_node }}",
+            "Error Message": "={{ $json.error_message }}",
+            "Execution URL": "={{ $json.execution_url }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-error-log",
+      "name": "📊 Log Error to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [700, 500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Logs the error to an 'Error Log' sheet tab in your same Roblox Content Tracker.\nCreate a new sheet tab called 'Error Log' with columns:\nTimestamp | Workflow | Failed Node | Error Message | Execution URL"
+    }
+  ],
+  "connections": {
+    "⚠️ Error Trigger": {
+      "main": [[{ "node": "📋 Parse Error Details", "type": "main", "index": 0 }]]
+    },
+    "📋 Parse Error Details": {
+      "main": [
+        [
+          { "node": "📱 Send Error Alert", "type": "main", "index": 0 },
+          { "node": "📊 Log Error to Sheet", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "📱 Send Error Alert": {
+      "main": [[]]
+    },
+    "📊 Log Error to Sheet": {
+      "main": [[]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Manila"
+  },
+  "tags": [
+    {
+      "name": "Roblox Content Machine"
+    }
+  ]
+}

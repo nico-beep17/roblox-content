@@ -1,0 +1,195 @@
+{
+  "name": "Roblox – The Daily Director",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "⏰ 8 AM PHT Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300],
+      "notes": "Fires at 8:00 AM daily in your n8n instance timezone.\nMake sure your n8n instance timezone is set to Asia/Manila (PHT).\nSettings → General → Timezone → Asia/Manila."
+    },
+
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Act as an elite short-form video strategist for the North American Gen Z/Alpha Roblox market. Your goal is maximum retention, engagement, and virality. Generate a script for a 20-second cinematic, hyper-realistic Roblox video based on current trends (DOORS, Blox Fruits, Dress to Impress, Brookhaven, etc.).\n\nToday's date is: {{ $now.format('yyyy-MM-dd') }}\n\nOutput strictly in this exact JSON format and NOTHING else:\n{\n  \"file_code_name\": \"2-3 words separated by dashes, e.g. doors-figure-chase\",\n  \"title_concept\": \"A short viral title concept\",\n  \"hook_text\": \"Bold on-screen text hook for 0-3s designed to interrupt scrolling\",\n  \"hook_visual_prompt\": \"Detailed Nano Banana 2 image prompt for the hook frame\",\n  \"voiceover_script\": \"Full US-slang voiceover script for the entire 20s video. Last word must flow into the first word of hook_text for seamless looping.\",\n  \"veo_motion_prompts\": [\n    \"Veo 3.1 motion/camera prompt for cut 1 with audio description\",\n    \"Veo 3.1 motion/camera prompt for cut 2 with audio description\",\n    \"Veo 3.1 motion/camera prompt for cut 3 with audio description\"\n  ],\n  \"easter_egg\": \"Description of hidden visual Easter Egg OR controversial debate statement\",\n  \"nano_banana_prompts\": [\n    \"Full Nano Banana 2 prompt for scene/frame 1 (9:16 vertical, UE5 aesthetic, volumetric fog, dramatic rim lighting, 8k textures)\",\n    \"Full Nano Banana 2 prompt for scene/frame 2\",\n    \"Full Nano Banana 2 prompt for scene/frame 3\"\n  ]\n}"
+            },
+            {
+              "role": "user",
+              "content": "Generate today's viral Roblox video concept. Make it completely different from yesterday. Focus on whatever Roblox game or trend is most culturally relevant right now. Push the boundaries of creativity."
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.95,
+          "maxTokens": 1500,
+          "responseFormat": "json_object"
+        }
+      },
+      "id": "openai-daily-director",
+      "name": "🧠 Generate Daily Concept",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [450, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "notes": "Uses GPT-4o with high temperature (0.95) for creative variety.\nResponse format forced to JSON so downstream nodes can parse fields.\nThe system prompt includes today's date for freshness.\nReplace credential ID with your actual OpenAI credential."
+    },
+
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={{ (() => {\n  const ai = JSON.parse($json.message.content);\n  return JSON.stringify({\n    date: $now.format('yyyy-MM-dd'),\n    file_code_name: ai.file_code_name,\n    title_concept: ai.title_concept,\n    hook: ai.hook_text,\n    script: ai.voiceover_script,\n    status: 'Pending',\n    hook_visual_prompt: ai.hook_visual_prompt,\n    veo_prompts: ai.veo_motion_prompts.join(' ||| '),\n    nano_prompts: ai.nano_banana_prompts.join(' ||| '),\n    easter_egg: ai.easter_egg\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "parse-ai-response",
+      "name": "📋 Parse AI Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [700, 300],
+      "notes": "Parses the GPT JSON response into flat fields for Sheets and Telegram.\nVeo and Nano prompts are joined with ' ||| ' delimiter for single-cell storage."
+    },
+
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $json.date }}",
+            "File Code Name": "={{ $json.file_code_name }}",
+            "Title Concept": "={{ $json.title_concept }}",
+            "Hook": "={{ $json.hook }}",
+            "Script": "={{ $json.script }}",
+            "Status": "={{ $json.status }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "sheets-append",
+      "name": "📊 Log to Content Tracker",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [950, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      },
+      "notes": "Appends one row to your 'Roblox Content Tracker' spreadsheet.\nColumn headers MUST exactly match: Date | File Code Name | Title Concept | Hook | Script | Status\nReplace YOUR_GOOGLE_SHEET_ID with the actual spreadsheet ID from the URL."
+    },
+
+    {
+      "parameters": {
+        "chatId": "YOUR_TELEGRAM_CHAT_ID",
+        "text": "=🎬 *DAILY ROBLOX MISSION*\n📅 {{ $json.date }}\n\n🏷️ *File Code Name:* `{{ $json.file_code_name }}`\n💡 *Concept:* {{ $json.title_concept }}\n\n🪝 *HOOK (0-3s):*\n{{ $json.hook }}\n\n🎨 *HOOK VISUAL PROMPT (Nano Banana 2):*\n{{ $json.hook_visual_prompt }}\n\n🎙️ *VOICEOVER SCRIPT:*\n{{ $json.script }}\n\n🎥 *VEO 3.1 MOTION PROMPTS:*\n{{ $json.veo_prompts.split(' ||| ').map((p, i) => '\\n' + (i+1) + '. ' + p).join('') }}\n\n🖼️ *NANO BANANA 2 SCENE PROMPTS:*\n{{ $json.nano_prompts.split(' ||| ').map((p, i) => '\\n' + (i+1) + '. ' + p).join('') }}\n\n🥚 *EASTER EGG / ENGAGEMENT TRAP:*\n{{ $json.easter_egg }}\n\n📁 Save as: `{{ $json.file_code_name }}.mp4`\n📂 Drop into: Google Drive → Ready_To_Post",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "telegram-brief",
+      "name": "📱 Send Brief to Phone",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1200, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
+      },
+      "notes": "Sends the full production brief to your Telegram chat.\nReplace YOUR_TELEGRAM_CHAT_ID with your personal chat ID.\nTo get your chat ID: message @userinfobot on Telegram.\nTo create a bot: message @BotFather → /newbot."
+    }
+  ],
+  "connections": {
+    "⏰ 8 AM PHT Daily": {
+      "main": [
+        [
+          {
+            "node": "🧠 Generate Daily Concept",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Generate Daily Concept": {
+      "main": [
+        [
+          {
+            "node": "📋 Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "📊 Log to Content Tracker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Log to Content Tracker": {
+      "main": [
+        [
+          {
+            "node": "📱 Send Brief to Phone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Manila"
+  },
+  "tags": [
+    {
+      "name": "Roblox Content Machine"
+    }
+  ]
+}
