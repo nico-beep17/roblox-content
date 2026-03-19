@@ -36,14 +36,18 @@ Built **Workflow 4: "The Analyst"** (`n8n-workflow-4-the-analyst.json`) — runs
 - [x] OpenAI node: generate 3-sentence actionable insight
 - [x] Telegram: send daily performance digest with per-platform breakdown + AI insight
 
-### 2.2 — Content Tracker Dashboard
-- [ ] Add columns to the Tracker: `Views (24h)` | `Views (7d)` | `AVD%` | `Engagement Rate` | `Top Platform`
-- [ ] Conditional formatting rules: green = viral (>100K views), yellow = decent (10K–100K), red = underperforming (<10K)
+### 2.2 — Content Tracker Dashboard ✅
+- [x] Google Apps Script auto-creates Analytics, Error Log, and Prompt Log tabs with formatting
+- [x] Conditional formatting: 🟢 green (≥100K views), 🟡 yellow (10K–100K), 🔴 red (<10K)
+- [x] 6-hour auto-refresh trigger (re-sorts by date, re-applies formatting)
+- [x] `getTopPerformers()` helper function for AI Memory integration
 
-### 2.3 — AI Memory (Self-Improving Prompts)
-- [ ] When generating the next day's concept, feed the Daily Director the **top 3 performing videos from the past 7 days** as context
-- [ ] Prompt GPT to analyze *why* they worked and generate a concept that replicates those patterns
-- [ ] Track prompt versions in a `Prompt Log` sheet tab for A/B testing
+### 2.3 — AI Memory (Self-Improving Prompts) ✅
+- [x] Daily Director v2 reads top 3 + bottom 3 performers from Analytics sheet
+- [x] Performance context injected into GPT-4o system prompt (PERFORMANCE MEMORY section)
+- [x] New output field: `memory_influence` explains how data shaped the concept
+- [x] Prompt Log tab tracks prompt version, context fed, concept generated, and result tier
+- [x] A/B testing ready: change `Prompt Version` field when experimenting with prompts
 
 **Outcome:** The system learns from its own data. Concepts trend upward in quality over time.
 
