@@ -1,107 +1,134 @@
-# 🚀 Roblox Content Machine
+# 🎬 Roblox Content Machine
 
-**An AI-powered, fully automated short-form video pipeline for Roblox gaming content.**
+> Fully automated AI pipeline for creating, publishing, and optimizing Roblox short-form videos across TikTok, YouTube Shorts, Instagram Reels, and Facebook Reels.
 
-Produces hyper-realistic, cinematic Roblox shorts and publishes them across **TikTok, YouTube Shorts, Instagram Reels, and Facebook Reels** — all while you sleep.
+## 🏗 System Architecture
 
----
+```
+6 AM  → The Scout        → trend detection (Reddit + YouTube)
+8 AM  → Daily Director   → AI concept generation (with memory + trends)
+        → YOU create visuals (Nano Banana 2 + Veo 3.1 + CapCut)
+        → Drop .mp4 into Google Drive → Ready_To_Post
+Auto  → The Publisher    → SEO metadata → 4-platform publish at 3 PM EDT
+4h    → The Engager      → comment classification + reply drafts
+8 PM  → The Analyst      → 4-platform stats + AI insight
+Sun   → The Compiler     → weekly long-form compilation
+Mon   → The Dealmaker    → brand outreach + media kit
+Error → Error Handler    → Telegram alert + Sheets error log
+```
 
 ## 📁 File Map
 
+### n8n Workflows (import into n8n)
+| File | Workflow | Trigger |
+|------|----------|---------|
+| `n8n-workflow-1-daily-director.json` | Daily Director v2 (AI Memory) | 8 AM daily |
+| `n8n-workflow-3-the-publisher.json` | The Publisher | Drive file upload |
+| `n8n-workflow-4-the-analyst.json` | The Analyst | 8 PM daily |
+| `n8n-workflow-5-the-compiler.json` | The Compiler | Sunday 10 AM |
+| `n8n-workflow-6-the-dealmaker.json` | The Dealmaker | Monday 9 AM |
+| `n8n-workflow-7-the-scout.json` | The Scout | 6 AM daily |
+| `n8n-workflow-8-the-engager.json` | The Engager | Every 4 hours |
+| `n8n-workflow-error-handler.json` | Error Handler | On error |
+| `n8n-social-upload-nodes.json` | Standalone upload nodes | Manual |
+
+### Configuration & Setup
 | File | Purpose |
 |------|---------|
-| **`roblox.md`** | Master blueprint — strategy, psychology, SOPs, prompt library |
-| **`n8n-workflow-1-daily-director.json`** | n8n workflow: AI idea generation → Sheets → Telegram brief |
-| **`n8n-workflow-3-the-publisher.json`** | n8n workflow: auto SEO → 4-platform publish → archive → notify |
-| **`n8n-workflow-error-handler.json`** | n8n workflow: catches errors → Telegram alert + Sheets error log |
-| **`n8n-social-upload-nodes.json`** | Standalone HTTP Request nodes for manual testing |
-| **`credential-setup-guide.md`** | Step-by-step OAuth2 setup for all 6 services |
-| **`n8n-env-variables.env`** | Environment variable reference with setup instructions |
-| **`content-tracker-template.csv`** | Import into Google Sheets for the content tracker |
-| **`check-placeholders.ps1`** | Validates all `YOUR_*` placeholders are replaced |
+| `niche-config.json` | Multi-niche settings (Roblox, Fortnite, Minecraft, Subway Surfers) |
+| `credential-setup-guide.md` | Step-by-step OAuth2 setup for all APIs |
+| `n8n-env-variables.env` | All environment variables reference |
+| `content-tracker-template.csv` | Google Sheets template |
+| `google-apps-script-dashboard.js` | Auto-format Analytics dashboard |
+| `check-placeholders.ps1` | Verify all `YOUR_*` placeholders are replaced |
 
----
+### Documentation
+| File | Purpose |
+|------|---------|
+| `roblox.md` | Original blueprint & strategy |
+| `roadmap.md` | 5-phase roadmap (all complete) |
+| `README.md` | This file |
 
-## ⚡ Quick Start
+## 🚀 Quick Start
 
-### Prerequisites
-- n8n Cloud or self-hosted instance
-- Google account (Drive, Sheets, YouTube)
-- TikTok Developer app (with `video.publish` scope approved)
-- Meta Developer app (IG Business + FB Page)
-- Telegram bot
-- OpenAI API key
+### 1. Set up credentials
+Follow [credential-setup-guide.md](credential-setup-guide.md) for OAuth2 setup.
 
-### Setup Steps
-1. **Read** `credential-setup-guide.md` and create all OAuth2 credentials
-2. **Import** `content-tracker-template.csv` into Google Sheets
-3. **Create** `Ready_To_Post` and `Archive` folders in Google Drive
-4. **Import** all 3 workflow JSONs into n8n (**Workflows → Import from File**)
-5. **Replace** all `YOUR_*` placeholders using `n8n-env-variables.env` as reference
-6. **Link** the Error Handler: open each workflow → **Settings → Error Workflow** → select `Roblox – Error Handler`
-7. **Validate**: run `check-placeholders.ps1` in PowerShell
-8. **Activate** all 3 workflows
+### 2. Import workflows
+In n8n: **Settings → Import** → upload each JSON file.
 
-### Add an "Error Log" tab to your Google Sheet
-In the same Roblox Content Tracker spreadsheet, create a new sheet tab called **Error Log** with these columns:
-```
-Timestamp | Workflow | Failed Node | Error Message | Execution URL
-```
+### 3. Configure environment
+Copy values from `n8n-env-variables.env` into **n8n → Settings → Environment Variables**.
 
----
+### 4. Set up Google Sheets
+- Import `content-tracker-template.csv` as a new Google Sheet
+- Open **Extensions → Apps Script** → paste `google-apps-script-dashboard.js` → Run `setupDashboard`
+- This auto-creates: Analytics, Error Log, Prompt Log tabs
+- Manually create: **Brand Leads** tab and **Trend Log** tab
 
-## 🔄 Daily Flow
+### 5. Create Google Drive folders
+- `Ready_To_Post` — drop finished videos here
+- `Archive` — Publisher auto-moves processed files here
 
-```
-8:00 AM PHT  →  Workflow 1 fires → AI generates concept → logs to Sheets → Telegram brief
-Your Workday →  You create visuals (Nano Banana 2 + Veo 3.1) → edit in CapCut → export as File Code Name.mp4
-Any Time     →  Drop .mp4 into Ready_To_Post folder
-Instantly    →  Workflow 3 fires → SEO metadata → schedules to 4 platforms for 3 PM EDT
-3:00 AM PHT  →  Posts go live across TikTok, YouTube, IG, and FB (3 PM in New York)
-If Error     →  Error Handler fires → Telegram alert + error logged to Sheets
+### 6. Verify setup
+```powershell
+.\check-placeholders.ps1
 ```
 
----
+### 7. Activate & go
+Activate all 8 workflows in n8n. The Scout fires first at 6 AM, followed by the Daily Director at 8 AM.
 
-## 🛠️ Architecture
+## 📊 Google Sheets Tabs
 
-```
-┌─────────────────┐     ┌──────────────────────────┐     ┌─────────────────┐
-│  Workflow 1      │     │  Your Manual Work         │     │  Workflow 3      │
-│  Daily Director  │────▶│  Nano Banana → Veo → Cut  │────▶│  The Publisher   │
-│  (8 AM PHT)      │     │  Export to Ready_To_Post   │     │  (Auto-trigger)  │
-└─────────────────┘     └──────────────────────────┘     └────────┬────────┘
-                                                                  │
-                            ┌─────────────────────────────────────┼─────────┐
-                            │              Fan-Out                 │         │
-                      ┌─────┴─────┐  ┌──────┴──────┐  ┌────┴────┐  ┌───┴───┐
-                      │  TikTok   │  │  IG Reels   │  │ YT Short│  │FB Reel│
-                      └─────┬─────┘  └──────┬──────┘  └────┬────┘  └───┬───┘
-                            └────────────────┴──────────────┴──────────┘
-                                             │
-                                   ┌─────────┴─────────┐
-                                   │  Archive + Track   │
-                                   │  + Telegram ✅     │
-                                   └───────────────────┘
-```
+| Tab | Created By | Purpose |
+|-----|-----------|---------|
+| Sheet1 | Manual (CSV) | Main content tracker |
+| Analytics | Apps Script | Per-video performance data |
+| Error Log | Apps Script | Workflow error tracking |
+| Prompt Log | Apps Script | AI prompt A/B testing |
+| Trend Log | Manual | Daily trend reports |
+| Brand Leads | Manual | Sponsor pipeline |
 
----
+## 🧠 AI Memory System
 
-## 📋 Prompt Library
+The Daily Director reads your analytics to improve concepts over time:
+- **Top 3 performers** → GPT replicates winning patterns
+- **Bottom 3 underperformers** → GPT avoids failing patterns
+- **memory_influence** → GPT explains its creative decisions
+- **Prompt Log** → tracks which context produced which results
 
-All creation prompts (Nano Banana 2, Veo 3.1, OpenAI system prompts) are documented in **`roblox.md` → Section 5**.
+## 🎮 Multi-Niche Support
 
----
+`niche-config.json` defines 4 niches (enable/disable per niche):
 
-## ⚠️ Known Limitations
+| Niche | Prefix | Style |
+|-------|--------|-------|
+| Roblox | `rb-` | UE5 hyper-realistic |
+| Fortnite | `fn-` | Cinematic replay angles |
+| Minecraft | `mc-` | "What if it was real?" |
+| Subway Surfers | `ss-` | Split-screen retention |
 
-| Platform | Limitation | Workaround |
-|----------|-----------|------------|
-| TikTok | No native scheduling API | n8n executes at the target time (3 AM PHT) |
-| YouTube | 10,000 quota units/day (~6 uploads) | Sufficient for 1-2 daily posts |
-| Meta | Short-lived tokens (60 days) | Set bi-monthly refresh reminder |
-| TikTok | App review can take days | Apply for `video.publish` scope early |
+## ⚡ Daily Timeline (PHT)
 
----
+| Time | What Happens |
+|------|-------------|
+| 6:00 AM | 🔍 Scout scans Reddit + YouTube for trends → Telegram report |
+| 8:00 AM | 🧠 Director generates today's concept (informed by trends + memory) → Telegram brief |
+| *You* | 🎨 Create visuals, edit in CapCut, drop `.mp4` into Drive |
+| Auto | 📡 Publisher SEO-optimizes and schedules to 4 platforms at 3 PM EDT |
+| Every 4h | 💬 Engager scans comments, classifies, drafts replies → Telegram |
+| 8:00 PM | 📊 Analyst pulls stats from 4 platforms → AI insight → Telegram digest |
+| Sunday | 🎬 Compiler creates weekly compilation brief → Telegram |
+| Monday | 🤝 Dealmaker generates brand pitch emails → Telegram HITL review |
 
-*Built with [n8n](https://n8n.io) + [OpenAI](https://openai.com) + Google Antigravity*
+## 🔐 Required API Credentials
+
+- OpenAI API (GPT-4o)
+- Google OAuth2 (Sheets, Drive, YouTube)
+- TikTok Content Posting API v2
+- Meta Graph API v21.0 (Instagram + Facebook)
+- Telegram Bot API
+
+## 📜 License
+
+Private project — not for redistribution.
